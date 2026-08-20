@@ -45,7 +45,7 @@ namespace Hidano.UnityTimelineBuilder.Editor
 
         private static void RegisterBuiltIns()
         {
-            Register(new BuiltInTrackBuilder("Audio", "Audio"));
+            Register(new AudioTrackBuilder());
             Register(new BuiltInTrackBuilder("Animation", "Animation"));
         }
 
