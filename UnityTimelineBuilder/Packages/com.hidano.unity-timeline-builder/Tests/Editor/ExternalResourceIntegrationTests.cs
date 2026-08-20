@@ -70,8 +70,8 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
                 .Where(clip => clip.name.IndexOf("__preview__", StringComparison.OrdinalIgnoreCase) < 0)
                 .Select(clip => clip.name)
                 .ToArray();
-            Assert.That(importedClipNames, Does.Contain("Anim|Walk"));
-            Assert.That(importedClipNames, Does.Contain("Anim|Run"));
+            Assert.That(importedClipNames, Does.Contain("Walk"));
+            Assert.That(importedClipNames, Does.Contain("Run"));
             var timeline = AssetDatabase.LoadAssetAtPath<TimelineAsset>(
                 OutputDirectory + "/ExternalResourceIntegration.playable");
             Assert.That(timeline, Is.Not.Null);
@@ -80,7 +80,7 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             Assert.That(((AudioPlayableAsset)audioTrack.GetClips().First().asset).clip, Is.Not.Null);
             Assert.That(((AudioPlayableAsset)audioTrack.GetClips().Last().asset).clip, Is.Not.Null);
             var animationClip = timeline.GetOutputTracks().OfType<AnimationTrack>().Single().GetClips().Single();
-            Assert.That(((AnimationPlayableAsset)animationClip.asset).clip.name, Is.EqualTo("Anim|Walk"));
+            Assert.That(((AnimationPlayableAsset)animationClip.asset).clip.name, Is.EqualTo("Walk"));
         }
 
         [Test]
