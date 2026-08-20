@@ -256,7 +256,7 @@ sequenceDiagram
 | Component | Domain/Layer | Intent | Req Coverage | Key Dependencies (P0/P1) | Contracts |
 |-----------|--------------|--------|--------------|--------------------------|-----------|
 | CsvSheetReader | Parsing | RFC 4180 準拠でファイルをフィールド行列へ分解 | 1.1, 1.2, 1.5 | System.IO (P0) | Service |
-| BuildSheetParser | Parsing | ヘッダー認識・列マッピング・型付き行への変換と検証 | 1.3, 1.4, 1.6, 7.4 | CsvSheetReader (P0) | Service |
+| BuildSheetParser | Parsing | ヘッダー認識・列マッピング・型付き行への変換と検証 | 1.3, 1.4, 1.6, 7.4 | CsvSheetReader (P0), trackType 判定 Func(Api 層から注入)(P0) | Service |
 | ResourceResolverRegistry | Resources | リソース種別キーとリゾルバの登録・検索 | 2.7, 2.8 | IResourceResolver 実装 (P0) | Service |
 | AudioClipResolver | Resources | wav/mp3 を AudioClip として解決 | 2.1, 2.3, 2.6, 2.7 | ExternalAssetImporter (P0), AssetDatabase (P0) | Service |
 | AnimationClipResolver | Resources | .anim / fbx 内包を AnimationClip として解決 | 2.1, 2.4, 2.5, 2.6, 2.7 | ExternalAssetImporter (P0), AssetDatabase (P0) | Service |
@@ -311,14 +311,14 @@ internal sealed class CsvSheetReader
 | Requirements | 1.3, 1.4, 1.6, 7.4 |
 
 **Responsibilities & Constraints**
-- 先頭行に `trackType` 列名(大文字小文字無視)が含まれる場合はヘッダー行として認識し、列名で位置マッピング(列順自由)。含まれない場合は全行をデータ行とみなし、下記「列仕様」の既定順で解釈する
+- 先頭行に `trackType` 列名(大文字小文字無視)が含まれる場合はヘッダー行として認識し、列名で位置マッピング(列順自由)。含まれない場合は全行をデータ行とみなし、下記「列仕様」の既定順で解釈する。この既定順フォールバック時は「ヘッダー未検出のため既定列順で解釈」と明示的に Warning ログを出力する(ヘッダー列名の綴りミスによる黙殺的誤解釈の防止)
 - 必須列欠落・未対応 trackType・数値解釈不能(startTime / clipIn / duration)を行番号(元ファイルの 1 始まり行番号)付きエラーとして収集する。エラーがあっても最終行まで検証を続ける
 - 数値は `CultureInfo.InvariantCulture` で解釈(ロケール非依存)
-- trackType の妥当性判定は `TrackBuilderRegistry` の登録キー照会で行う(種別追加時にパーサー変更不要)
+- trackType の妥当性判定は、Api 層(TimelineBuilder)からコンストラクタ注入される判定関数 `Func<string, bool>`(実体は `TrackBuilderRegistry.IsKnownTrackType` の委譲)で行う。種別追加時にパーサー変更が不要(3.6 の意図を維持)であると同時に、Parsing 層は Building 層を import しない(依存方向規約の遵守)
 
 **Dependencies**
-- Inbound: TimelineBuilder — パイプライン呼び出し (P0)
-- Outbound: TrackBuilderRegistry — trackType キーの妥当性照会 (P1)
+- Inbound: TimelineBuilder — パイプライン呼び出し。trackType 妥当性判定関数の注入元 (P0)
+- Outbound: なし(Building 層への直接依存は禁止。trackType 判定は注入された `Func<string, bool>` 経由)
 
 **Contracts**: Service [x]
 
@@ -326,6 +326,9 @@ internal sealed class CsvSheetReader
 ```csharp
 internal sealed class BuildSheetParser
 {
+    /// <summary>trackType の妥当性判定関数を注入する(Api 層が TrackBuilderRegistry.IsKnownTrackType を渡す)。</summary>
+    public BuildSheetParser(Func<string, bool> isKnownTrackType);
+
     /// <summary>行列を型付き行へ変換。エラーは収集して返す(例外にしない)。</summary>
     public ParseOutcome Parse(IReadOnlyList<IReadOnlyList<string>> rawRows);
 }
@@ -456,7 +459,7 @@ internal sealed class ExternalAssetImporter
 - 両ビルダーとも `TimelineClip` の `start` / `clipIn` / `duration` / `displayName` を行の値で設定する(3.4)
 
 **Dependencies**
-- Inbound: TimelineAssetFactory (P0)、BuildSheetParser — trackType キー照会 (P1)
+- Inbound: TimelineAssetFactory (P0)、TimelineBuilder — `IsKnownTrackType` を Parser へ注入するための照会元 (P1)
 - External: UnityEngine.Timeline API (P0)
 
 **Contracts**: Service [x]
@@ -500,8 +503,8 @@ internal static class TrackBuilderRegistry
 **Responsibilities & Constraints**
 - トラックグルーピング規約: キーは `(trackType 正規化小文字, trackName 完全一致)`。同一キーの行は同一トラックへ集約(3.3)。トラック生成順・クリップ配置順は構築情報の行出現順を保持する
 - 行に対応しないトラック・クリップを生成しない(3.5)
-- 出力パス `{outputDirectory}/{assetName}.playable` に保存。既存アセットがある場合は削除→再作成で上書きし、上書きした旨をログ出力(4.4)
-- 保存は `AssetDatabase.CreateAsset` + `AssetDatabase.SaveAssets`(サブアセットの永続化)
+- 出力パス `{outputDirectory}/{assetName}.playable` に保存。既存アセットがある場合は `AssetDatabase.DeleteAsset` + 再作成は行わず、`AssetDatabase.LoadAssetAtPath<TimelineAsset>` でロードして既存トラックを全削除(`TimelineAsset.DeleteTrack` でサブアセットも破棄)→ インプレースで再構築する。これによりアセット GUID を保持し、シーン等からの既存参照を壊さない(冪等性不変条件との整合)。上書きした旨はログ出力(4.4)
+- 保存は新規作成時 `AssetDatabase.CreateAsset`、既存更新時はインプレース編集のうえ、いずれも `AssetDatabase.SaveAssets`(サブアセットの永続化)
 
 **Dependencies**
 - Inbound: TimelineBuilder (P0)
@@ -575,6 +578,7 @@ internal sealed class PrefabFactory
 **Responsibilities & Constraints**
 - 引数検証(null / 空文字 / 構築情報ファイル不在 / outputDirectory が `Assets/` 配下でない)を最初に行い、違反は `ArgumentException` 系の即時送出、またはファイル不在等の環境起因は `BuildResult` のエラーで返す(5.3)
 - Phase A → Phase B のゲート制御(System Flows 参照)と、全エラーの `BuildResult` への集約(5.2)
+- `BuildSheetParser` の生成時に `TrackBuilderRegistry.IsKnownTrackType` を `Func<string, bool>` として注入する(Parsing → Building の依存禁止を維持しつつ、トラック種別追加時のパーサー無変更を保証: 3.6)
 - Phase B 内の予期しない例外は捕捉して `BuildError(Unexpected)` に変換する(API 利用者に Unity 例外を漏らさない)
 - ログはすべて接頭辞 `[UnityTimelineBuilder]` を付与(バッチログからの抽出容易性)
 
@@ -644,7 +648,7 @@ namespace Hidano.UnityTimelineBuilder.Editor
 ```
 - Preconditions: Unity Editor メインスレッドから呼び出す
 - Postconditions: `Success == true` のとき `TimelineAssetPath` / `PrefabPath` のアセットが存在する。`Success == false` のとき `Errors.Count >= 1`
-- Invariants: 同一入力での再実行は同一出力を上書き生成する(冪等)
+- Invariants: 同一入力での再実行は同一出力を上書き生成する(冪等)。TimelineAsset(インプレース更新)・Prefab(`SaveAsPrefabAsset` 上書き)ともアセット GUID を保持し、既存参照を破壊しない
 
 ### Cli
 
@@ -689,7 +693,7 @@ namespace Hidano.UnityTimelineBuilder.Editor
 **Implementation Notes**
 - Integration:
   - `package.json`: `name: "com.hidano.unity-timeline-builder"`, `unity: "6000.0"`, `dependencies: { "com.unity.timeline": "1.8.13" }`(8.2–8.4)。embedded package のため manifest.json の編集は不要(8.1)
-  - asmdef `Hidano.UnityTimelineBuilder.Editor`: `includePlatforms: ["Editor"]`、references: `Unity.Timeline`。Tests 用 asmdef は本体 + UnityEngine.TestRunner / UnityEditor.TestRunner を参照し `"testAssemblies"` を defineConstraints ではなく optionalUnityReferences 相当(precompiled 設定)で構成
+  - asmdef `Hidano.UnityTimelineBuilder.Editor`: `includePlatforms: ["Editor"]`、references: `Unity.Timeline`。Tests 用 asmdef は本体 asmdef に加えて `UnityEngine.TestRunner` / `UnityEditor.TestRunner` を明示的に references に列挙し、`"defineConstraints": ["UNITY_INCLUDE_TESTS"]` を設定する(旧 `optionalUnityReferences: testAssemblies` は非推奨のため使用しない)
   - `Documentation~/timeline-template.csv`: 列仕様表のヘッダー行 + Audio / Animation 各 1 行以上のサンプルデータ(7.1, 7.2)。文字コード UTF-8、改行 CRLF(Google スプレッドシート File > Import で取込可能)
   - `Documentation~/column-definitions.md`: 列仕様表(名称・意味・型・必須/任意・記入例)と trackType 別の resourcePath 規約を記載(7.3)
 - Validation: E2E テストで「テンプレート CSV をそのまま入力にした構築が成功する」ことを検証し、テンプレートとパーサー仕様の一致(7.4)を自動担保する
@@ -757,7 +761,7 @@ internal sealed class ClipRow
 1. フィクスチャ CSV(Audio + Animation 混在)→ TimelineAsset 生成 → トラック数・トラック名・クリップの start/clipIn/duration/displayName・割り当てアセットを検証(3.1–3.5)
 2. 外部 wav / mp3 / fbx をプロジェクト外パスで指定 → インポート先へのコピーと参照解決を検証(2.2, 2.3, 2.4)。複数クリップ内包 fbx の名前一致選択と不一致エラー(2.5)
 3. Prefab 生成: PlayableDirector 存在・playableAsset 参照・バインディング未設定・一時 GameObject の残留なしを検証(4.1–4.3)
-4. 上書き再実行: 同一出力先へ 2 回実行し、上書きログと最終状態の正しさを検証(4.4、冪等性)
+4. 上書き再実行: 同一出力先へ 2 回実行し、上書きログと最終状態の正しさ、および TimelineAsset / Prefab のアセット GUID が 1 回目と変わらないことを検証(4.4、冪等性・参照保持)
 5. E2E: 同梱テンプレート `timeline-template.csv` をそのまま入力とし構築成功することを検証(7.2, 7.4)
 
 ### CLI / Batch(手動またはスクリプト検証)
