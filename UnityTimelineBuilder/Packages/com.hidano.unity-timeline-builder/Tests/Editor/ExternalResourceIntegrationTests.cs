@@ -1,132 +1,123 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.TestTools;
+using UnityEngine.Timeline;
 
 namespace Hidano.UnityTimelineBuilder.Editor.Tests
 {
     public sealed class ExternalResourceIntegrationTests
     {
-        private string _sourceDirectory;
-        private string _sheetPath;
-        private string _importDirectory;
-        private string _outputDirectory;
+        private const string FixtureDirectory = "Assets/UnityTimelineBuilder/Tests/Fixtures";
+        private const string ImportDirectory = "Assets/UnityTimelineBuilder/Tests/ExternalImported";
+        private const string OutputDirectory = "Assets/UnityTimelineBuilder/Tests/ExternalIntegrationOutput";
+        private string _externalDirectory;
 
         [SetUp]
         public void SetUp()
         {
-            _sourceDirectory = Path.Combine(Path.GetTempPath(), "UnityTimelineBuilderExternal_" + Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(_sourceDirectory);
-            _sheetPath = Path.Combine(_sourceDirectory, "external.csv");
-            _importDirectory = "Assets/UnityTimelineBuilder/Tests/ExternalImported_" + Guid.NewGuid().ToString("N");
-            _outputDirectory = "Assets/UnityTimelineBuilder/Tests/ExternalOutput_" + Guid.NewGuid().ToString("N");
-            EnsureFolder(_outputDirectory);
+            _externalDirectory = Path.Combine(Path.GetTempPath(), "UnityTimelineBuilderExternal_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(_externalDirectory);
+            var wav = Path.Combine(_externalDirectory, "external.wav");
+            File.WriteAllBytes(wav, CreateSilentWave(48000));
+            RunFfmpeg("-y -i "" + wav + "" -codec:a libmp3lame -b:a 32k "" +
+                Path.Combine(_externalDirectory, "external.mp3") + """);
+            File.Copy(GetProjectPath(FixtureDirectory + "/external-multiple-clips.fbx"),
+                Path.Combine(_externalDirectory, "external-multiple-clips.fbx"));
+            File.WriteAllText(Path.Combine(_externalDirectory, "external-resource-integration.csv"),
+                File.ReadAllText(GetProjectPath(FixtureDirectory + "/external-resource-integration.csv")));
+            File.WriteAllText(Path.Combine(_externalDirectory, "external-resource-mismatch.csv"),
+                File.ReadAllText(GetProjectPath(FixtureDirectory + "/external-resource-mismatch.csv")));
+            EnsureFolder(ImportDirectory);
+            EnsureFolder(OutputDirectory);
         }
 
         [TearDown]
         public void TearDown()
         {
-            AssetDatabase.DeleteAsset(_outputDirectory);
-            AssetDatabase.DeleteAsset(_importDirectory);
+            AssetDatabase.DeleteAsset(OutputDirectory);
+            AssetDatabase.DeleteAsset(ImportDirectory);
+            AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            if (Directory.Exists(_sourceDirectory))
-                Directory.Delete(_sourceDirectory, true);
+            if (Directory.Exists(_externalDirectory))
+                Directory.Delete(_externalDirectory, true);
         }
 
         [Test]
-        public void BuildsFromExternalWaveAndCopiesItToImportDirectory()
+        public void BuildsTimelineFromExternalWavMp3AndNamedFbxClip()
         {
-            var wavePath = Path.Combine(_sourceDirectory, "external.wav");
-            File.WriteAllBytes(wavePath, CreateSilentWave(800));
-            WriteSheet("Audio,External,Sound,0,0,1," + wavePath);
-
             var result = TimelineBuilder.Build(new BuildRequest
             {
-                SheetPath = _sheetPath,
-                OutputDirectory = _outputDirectory,
-                AssetName = "ExternalAudio",
-                ImportDirectory = _importDirectory
+                SheetPath = Path.Combine(_externalDirectory, "external-resource-integration.csv"),
+                OutputDirectory = OutputDirectory,
+                AssetName = "ExternalResourceIntegration",
+                ImportDirectory = ImportDirectory
             });
 
             Assert.That(result.Success, Is.True, FormatErrors(result));
-            var importedPath = _importDirectory + "/external.wav";
-            var imported = AssetDatabase.LoadAssetAtPath<AudioClip>(importedPath);
-            Assert.That(imported, Is.Not.Null);
-            Assert.That(File.Exists(ProjectPath(importedPath)), Is.True);
+            Assert.That(AssetDatabase.LoadAssetAtPath<AudioClip>(ImportDirectory + "/external.wav"), Is.Not.Null);
+            Assert.That(AssetDatabase.LoadAssetAtPath<AudioClip>(ImportDirectory + "/external.mp3"), Is.Not.Null);
+            Assert.That(AssetDatabase.LoadMainAssetAtPath(ImportDirectory + "/external-multiple-clips.fbx"), Is.Not.Null);
+            var timeline = AssetDatabase.LoadAssetAtPath<TimelineAsset>(
+                OutputDirectory + "/ExternalResourceIntegration.playable");
+            Assert.That(timeline, Is.Not.Null);
+            var audioTrack = timeline.GetOutputTracks().OfType<AudioTrack>().Single();
+            Assert.That(audioTrack.GetClips(), Has.Exactly(2).Items);
+            Assert.That(((AudioPlayableAsset)audioTrack.GetClips().First().asset).clip, Is.Not.Null);
+            Assert.That(((AudioPlayableAsset)audioTrack.GetClips().Last().asset).clip, Is.Not.Null);
+            var animationClip = timeline.GetOutputTracks().OfType<AnimationTrack>().Single().GetClips().Single();
+            Assert.That(((AnimationPlayableAsset)animationClip.asset).clip.name, Is.EqualTo("Walk"));
         }
 
         [Test]
-        public void ReportsLineAndSourceWhenExternalFbxClipNameCannotBeResolved()
+        public void ReportsLineNumberWhenExternalFbxClipNameDoesNotMatch()
         {
-            var fbxPath = Path.Combine(_sourceDirectory, "multiple-clips.fbx");
-            File.WriteAllText(fbxPath, MinimalFbxFixture);
-            WriteSheet("Audio,External,Sound,0,0,1," + CreateUnusedWave() + "\n"
-                + "Animation,Character,MissingClip,1,0,1," + fbxPath);
-            LogAssert.Expect(LogType.Error, new Regex(".*ResourceTypeMismatch.*multiple-clips\\.fbx.*"));
-
             var result = TimelineBuilder.Build(new BuildRequest
             {
-                SheetPath = _sheetPath,
-                OutputDirectory = _outputDirectory,
-                AssetName = "ExternalAnimation",
-                ImportDirectory = _importDirectory
+                SheetPath = Path.Combine(_externalDirectory, "external-resource-mismatch.csv"),
+                OutputDirectory = OutputDirectory,
+                AssetName = "ExternalResourceMismatch",
+                ImportDirectory = ImportDirectory
             });
 
             Assert.That(result.Success, Is.False);
-            var error = result.Errors.Single(error => error.LineNumber == 3);
-            Assert.That(error.Code, Is.EqualTo(BuildErrorCode.ResourceNotFound).Or.EqualTo(BuildErrorCode.ResourceTypeMismatch));
-            Assert.That(error.LineNumber, Is.EqualTo(3));
-            Assert.That(error.SourcePath, Is.EqualTo(fbxPath));
-            Assert.That(File.Exists(ProjectPath(_importDirectory + "/multiple-clips.fbx")), Is.True);
-        }
-
-        [Test]
-        public void BuildsFromExternalMp3AndCopiesItToImportDirectory()
-        {
-            var mp3Path = Path.Combine(_sourceDirectory, "external.mp3");
-            File.WriteAllBytes(mp3Path, CreateSilentWave(800));
-            WriteSheet("Audio,External,Sound,0,0,1," + mp3Path);
-
-            var result = TimelineBuilder.Build(new BuildRequest
-            {
-                SheetPath = _sheetPath,
-                OutputDirectory = _outputDirectory,
-                AssetName = "ExternalMp3",
-                ImportDirectory = _importDirectory
-            });
-
-            Assert.That(result.Success, Is.True, FormatErrors(result));
-            Assert.That(AssetDatabase.LoadAssetAtPath<AudioClip>(_importDirectory + "/external.mp3"), Is.Not.Null);
-            Assert.That(File.Exists(ProjectPath(_importDirectory + "/external.mp3")), Is.True);
-        }
-
-        private void WriteSheet(string rows)
-        {
-            File.WriteAllText(_sheetPath,
-                "trackType,trackName,clipName,startTime,clipIn,duration,resourcePath\n" + rows + "\n");
-        }
-
-        private string CreateUnusedWave()
-        {
-            var path = Path.Combine(_sourceDirectory, "external.wav");
-            if (!File.Exists(path))
-                File.WriteAllBytes(path, CreateSilentWave(800));
-            return path;
+            var error = result.Errors.Single(error => error.Code == BuildErrorCode.ResourceNotFound);
+            Assert.That(error.LineNumber, Is.EqualTo(2));
+            Assert.That(error.SourcePath, Is.EqualTo("external-multiple-clips.fbx"));
+            Assert.That(error.Message, Does.Contain("MissingClip"));
+            Assert.That(AssetDatabase.LoadAssetAtPath<TimelineAsset>(
+                OutputDirectory + "/ExternalResourceMismatch.playable"), Is.Null);
         }
 
         private static string FormatErrors(BuildResult result)
         {
-            return string.Join("\n", result.Errors.Select(error => error.Code + ": " + error.Message));
+            return result == null ? "Build returned null." : string.Join("\n", result.Errors.Select(error => error.Message));
         }
 
-        private static string ProjectPath(string assetPath)
+        private static string GetProjectPath(string assetPath)
         {
             return Path.Combine(Directory.GetParent(Application.dataPath).FullName,
                 assetPath.Replace('/', Path.DirectorySeparatorChar));
+        }
+
+        private static void RunFfmpeg(string arguments)
+        {
+            using (var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = "ffmpeg",
+                Arguments = arguments,
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                RedirectStandardError = true
+            }))
+            {
+                process.WaitForExit();
+                if (process.ExitCode != 0)
+                    Assert.Fail("ffmpeg failed: " + process.StandardError.ReadToEnd());
+            }
         }
 
         private static void EnsureFolder(string assetPath)
@@ -146,7 +137,7 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         {
             const short channels = 1;
             const short bitsPerSample = 16;
-            const int sampleRate = 8000;
+            const int sampleRate = 48000;
             var dataSize = sampleCount * channels * (bitsPerSample / 8);
             using (var stream = new MemoryStream(44 + dataSize))
             using (var writer = new BinaryWriter(stream))
@@ -168,20 +159,5 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
                 return stream.ToArray();
             }
         }
-
-        private const string MinimalFbxFixture = @"; FBX 7.3.0 project file
-FBXHeaderExtension:  {
-    FBXHeaderVersion: 1003
-    FBXVersion: 7300
-    Creator: ""UnityTimelineBuilder test""
-}
-Definitions:  {
-    Version: 100
-    Count: 0
-}
-Objects:  {
-}
-Connections:  {
-}";
     }
 }

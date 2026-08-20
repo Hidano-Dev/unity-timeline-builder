@@ -6,7 +6,7 @@ using UnityEngine;
 namespace Hidano.UnityTimelineBuilder.Editor
 {
     /// <summary>プロジェクト外のファイルを Assets 配下へコピーし、同期インポートします。</summary>
-    public sealed class ExternalAssetImporter
+    internal sealed class ExternalAssetImporter
     {
         public bool TryImportToProject(string externalPath, ResolveContext context,
             out string assetPath, out BuildError error)

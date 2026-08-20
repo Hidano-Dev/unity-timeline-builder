@@ -3,7 +3,7 @@ using System;
 namespace Hidano.UnityTimelineBuilder.Editor
 {
     /// <summary>リソース解決時に使用するプロジェクト環境情報です。</summary>
-    public sealed class ResolveContext
+    internal sealed class ResolveContext
     {
         public string ImportDirectory { get; }
         public string SheetDirectory { get; }

@@ -6,7 +6,7 @@ using System.Text;
 namespace Hidano.UnityTimelineBuilder.Editor
 {
     /// <summary>CSV/TSV の読み取りに失敗したことを表す例外。</summary>
-    public sealed class SheetReadException : IOException
+    internal sealed class SheetReadException : IOException
     {
         public SheetReadException(string message, Exception innerException = null)
             : base(message, innerException)
@@ -15,7 +15,7 @@ namespace Hidano.UnityTimelineBuilder.Editor
     }
 
     /// <summary>RFC 4180 の引用規則に対応した CSV/TSV リーダー。</summary>
-    public sealed class CsvSheetReader
+    internal sealed class CsvSheetReader
     {
         /// <summary>拡張子から区切り文字を判別し、空行を除く全行を読み取る。</summary>
         public IReadOnlyList<IReadOnlyList<string>> ReadAll(string filePath)

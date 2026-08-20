@@ -1,7 +1,7 @@
 namespace Hidano.UnityTimelineBuilder.Editor
 {
     /// <summary>構築情報の 1 行を型付きで表現した不変データ。</summary>
-    public sealed class ClipRow
+    internal sealed class ClipRow
     {
         public int LineNumber { get; }
         public string TrackType { get; }

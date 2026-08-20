@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace Hidano.UnityTimelineBuilder.Editor
 {
-    public sealed class ParseOutcome
+    internal sealed class ParseOutcome
     {
         public IReadOnlyList<ClipRow> Rows { get; }
         public IReadOnlyList<BuildError> Errors { get; }
@@ -21,7 +21,7 @@ namespace Hidano.UnityTimelineBuilder.Editor
     }
 
     /// <summary>構築情報のヘッダー認識、列マッピング、行検証を行うパーサー。</summary>
-    public sealed class BuildSheetParser
+    internal sealed class BuildSheetParser
     {
         private static readonly string[] RequiredColumns =
         {

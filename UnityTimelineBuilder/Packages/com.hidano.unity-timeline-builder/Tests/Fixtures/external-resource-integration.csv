@@ -1,0 +1,4 @@
+trackType,trackName,clipName,startTime,clipIn,duration,resourcePath
+Audio,Music,WavClip,0,0,1,external.wav
+Audio,Music,Mp3Clip,1,0,1,external.mp3
+Animation,Character,Walk,0,0,1,external-multiple-clips.fbx
