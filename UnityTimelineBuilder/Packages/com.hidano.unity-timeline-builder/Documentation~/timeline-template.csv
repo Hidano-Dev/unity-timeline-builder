@@ -1,0 +1,3 @@
+trackType,trackName,clipName,startTime,clipIn,duration,resourcePath
+Audio,BGM,intro,0,0,3.2,Assets/Audio/intro.wav
+Animation,Character,intro,0.5,0,2.5,Assets/Animations/character.fbx

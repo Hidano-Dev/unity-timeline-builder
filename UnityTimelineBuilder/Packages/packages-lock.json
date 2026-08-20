@@ -1,5 +1,13 @@
 {
   "dependencies": {
+    "com.hidano.unity-timeline-builder": {
+      "version": "file:com.hidano.unity-timeline-builder",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.unity.timeline": "1.8.13"
+      }
+    },
     "com.unity.bindings.openimageio": {
       "version": "1.0.2",
       "depth": 1,
@@ -78,7 +86,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.recorder": {
-      "version": "5.1.6",
+      "version": "5.1.7",
       "depth": 0,
       "source": "registry",
       "dependencies": {
@@ -169,7 +177,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.timeline": {
-      "version": "1.8.12",
+      "version": "1.8.13",
       "depth": 0,
       "source": "registry",
       "dependencies": {

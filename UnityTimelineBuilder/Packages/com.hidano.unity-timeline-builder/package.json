@@ -1,0 +1,10 @@
+{
+  "name": "com.hidano.unity-timeline-builder",
+  "version": "0.1.0",
+  "displayName": "Unity Timeline Builder",
+  "description": "CSV/TSV の構築情報から Unity Timeline と Prefab を生成する Editor 専用パッケージです。",
+  "unity": "6000.0",
+  "dependencies": {
+    "com.unity.timeline": "1.8.13"
+  }
+}
