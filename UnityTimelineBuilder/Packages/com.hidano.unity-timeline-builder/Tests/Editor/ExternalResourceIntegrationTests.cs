@@ -65,7 +65,7 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
                 OutputDirectory + "/ExternalResourceIntegration.playable");
             Assert.That(timeline, Is.Not.Null);
             var audioTrack = timeline.GetOutputTracks().OfType<AudioTrack>().Single();
-            Assert.That(audioTrack.GetClips(), Has.Exactly(2).Items);
+            Assert.That(audioTrack.GetClips().Count(), Is.EqualTo(2));
             Assert.That(((AudioPlayableAsset)audioTrack.GetClips().First().asset).clip, Is.Not.Null);
             Assert.That(((AudioPlayableAsset)audioTrack.GetClips().Last().asset).clip, Is.Not.Null);
             var animationClip = timeline.GetOutputTracks().OfType<AnimationTrack>().Single().GetClips().Single();
