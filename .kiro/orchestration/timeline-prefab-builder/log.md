@@ -48,3 +48,22 @@
   - Escalation: none
   - Retry: 1 回(validate-design の Critical 整合性指摘 2 件を merge モードで差し戻し反映)
 - Branch/PR: n/a
+
+## Phase 4: タスク分解 — 2026-08-20T19:45:00+09:00
+
+- Command: `/kiro:spec-tasks timeline-prefab-builder -y`
+- Result: メジャータスク 9 件・サブタスク 18 件を生成。(P) 並列マーカー 9 件。9.5(CLI バッチ検証)は Unity プロジェクト排他使用のため並行不可と明記。
+- Reviewer: セルフチェック(Grep による機械的確認)
+- Gate C: AUTO-APPROVED
+  - Rationale: 全要件 ID 1.1〜8.4(42 項目)がタスクの _Requirements:_ 参照に漏れなくマッピング済み。空のコンテナタスクなし。データ削除・デプロイ・外部送信・Boundary 外に触れる破壊的タスクなし。
+  - spec.json を直接更新: approvals.tasks.approved=true / ready_for_implementation=true / phase=tasks-approved
+  - Escalation: none
+  - Retry: none
+- Branch/PR: n/a
+- 実装開始の特例判定: Gate A〜C でエスカレーション 0 件 → 実装前の追加確認は不要。spec-run を自動開始する。
+
+## Phase 5 前処理: ブランチ作成 — 2026-08-20T19:50:00+09:00
+
+- Command: `git checkout -b feature/timeline-prefab-builder`
+- Result: main 先端(spec ドキュメントコミット 4 件を含む)から feature ブランチを作成。ローカル main は origin/main(6fbd805)へ戻した(spec コミットは feature ブランチが保持)。
+- Branch/PR: feature/timeline-prefab-builder
