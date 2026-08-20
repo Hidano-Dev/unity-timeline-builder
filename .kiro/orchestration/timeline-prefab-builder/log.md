@@ -76,5 +76,8 @@
 - 環境対処 2: タスク 9.2 で Bash ツールの上限 10 分によるタイムアウト 1 回(working tree への影響なし)。バックグラウンド実行に切り替えて再実行し OK。
 - 補正: 一部 codex セッションで tasks.md のチェック更新漏れ → 全タスク [x] に補正しコミット(63b00bb)。
 - コミット: 73c6cc2(1.1)〜7ee9a75(9.5)+ 63b00bb(補正)
-- Reviewer: validate-impl 実行中(結果は Gate D 判定に記録)
+- Reviewer: validate-impl → **GO**。EditMode テスト 40/40 パス(Unity 6000.0.36f1 バッチ実行)、CLI 受け入れ 3 系統(exit code 0/1/2)実機合格、42 AC すべて実装に追跡可能。非ブロッキング Warning 5 件(AC 2.5 の名前一致成功経路テスト空白 / verify-cli-batch.ps1 の -ProjectPath 省略時挙動 / テスト残置物 .meta / 設計 internal 指定の一部が public / テンプレート CSV が LF)。
+- Gate D: AUTO-APPROVED(完了報告)
+  - Rationale: 全 22 タスク完了(コミット 1:1 対応)+ validate-impl GO・重大指摘なし。1.1 の FAIL 記録は Unity パス未発見によるテスト未実行の誤検知で、実装コミット存在・後続テスト全パス・validate-impl のタスク完了確認により解消済みと判定。Warning 5 件は残課題として完了報告に転記。
+  - Escalation: none
 - Branch/PR: feature/timeline-prefab-builder
