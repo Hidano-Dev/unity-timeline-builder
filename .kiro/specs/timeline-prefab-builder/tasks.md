@@ -88,7 +88,7 @@
   - クリップ追加 1 回につきクリップが厳密に 1 つ追加され、トラックバインディングが未設定のままであることを確認できる
   - _Requirements: 3.2, 3.4_
 
-- [ ] 5.3 (P) AnimationTrack ビルダーを実装する
+- [x] 5.3 (P) AnimationTrack ビルダーを実装する
   - TimelineAsset に指定名の AnimationTrack を作成し、AnimationClip を割り当てたクリップを追加する
   - クリップの start / clipIn / duration / displayName に構築情報の値を設定する
   - クリップ追加 1 回につきクリップが厳密に 1 つ追加され、トラックバインディングが未設定のままであることを確認できる
