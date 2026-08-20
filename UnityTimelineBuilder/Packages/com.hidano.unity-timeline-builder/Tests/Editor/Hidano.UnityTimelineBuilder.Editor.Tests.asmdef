@@ -3,6 +3,7 @@
   "rootNamespace": "Hidano.UnityTimelineBuilder.Editor.Tests",
   "references": [
     "Hidano.UnityTimelineBuilder.Editor",
+    "Unity.Timeline",
     "UnityEngine.TestRunner",
     "UnityEditor.TestRunner"
   ],
