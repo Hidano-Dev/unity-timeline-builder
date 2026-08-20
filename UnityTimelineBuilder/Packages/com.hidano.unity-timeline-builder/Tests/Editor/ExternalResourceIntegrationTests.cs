@@ -5,6 +5,7 @@ using System.Linq;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.TestTools;
 using UnityEngine.Timeline;
 
 namespace Hidano.UnityTimelineBuilder.Editor.Tests
@@ -75,6 +76,8 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         [Test]
         public void ReportsLineNumberWhenExternalFbxClipNameDoesNotMatch()
         {
+            LogAssert.Expect(LogType.Error,
+                new System.Text.RegularExpressions.Regex(".*ResourceNotFound.*MissingClip.*"));
             var result = TimelineBuilder.Build(new BuildRequest
             {
                 SheetPath = Path.Combine(_externalDirectory, "external-resource-mismatch.csv"),
