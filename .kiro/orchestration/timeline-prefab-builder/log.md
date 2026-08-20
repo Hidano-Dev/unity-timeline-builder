@@ -109,3 +109,12 @@
 - 改善: ExternalAssetImporterTests の TearDown を AssetDatabase.DeleteAsset に変更し、Test_* .meta 残置(validate-impl Warning 3)を根治。蓄積残置物も削除。
 - 検証: EditMode テスト 39/39 パス(実 FBX 経路を含む)。push 済み(07161e4)、PR に対応コメント投稿済み。
 - 残課題の消化: validate-impl Warning のうち「AC 2.5 実 FBX 成功経路テスト」「テスト残置物」「internal 化」の 3 件がこの対応で解消。残りは verify-cli-batch.ps1 の -ProjectPath 省略時挙動とテンプレート CSV の LF のみ。
+
+## PR フォローアップ 2: Copilot(copilot-swe-agent)コミットの取り込み — 2026-08-21T01:40:00+09:00
+
+- 依頼: 「Copilot の再レビューが別ブランチを切った。確認して問題なければ取り込んで」
+- 実際の状況: 別ブランチではなく、copilot-swe-agent[bot] が PR head(feature/timeline-prefab-builder)へ直接コミット 0ddbf28「fix: harden external asset import paths and meta handling」を push していた(ローカルと 1/1 分岐)。
+- レビュー結果: 妥当と判断。内容 = (1) 取り込み先を src_<SHA256先頭12hex> のソースディレクトリ別サブフォルダに分離し同名ファイル衝突を防止 (2) companion .meta を初回のみコピーし GUID を Guid.NewGuid() でランダム差し替え(GUID ルール適合) (3) 衝突シナリオの新テスト 2 件 + 動的パス探索へのテスト修正。
+- 取り込み: git pull --rebase で統合(競合なし)。
+- 統合後の修正 1 件: companion .meta コピーにより fixture .meta の clipAnimations(Walk/Run リネーム)が取り込み先にも適用され、実クリップ名が Anim|Walk → Walk に変化。CSV fixture とテスト期待値を Walk に戻して整合(コピー機構の望ましい効果として採用)。
+- 検証: EditMode テスト 41/41 パス。残置物削除後 push 済み(23400fb)。
