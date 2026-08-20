@@ -1,0 +1,52 @@
+# =============================================================================
+# orchestration アセット同期ワークフロー
+# -----------------------------------------------------------------------------
+# 生成先リポジトリに常駐し、手動実行 (workflow_dispatch) で
+# orchestration-development-template の最新 main から SDD ワークフロー一式
+# (.claude / .codex / .kiro / .agents / AGENTS.md) を取り込み直す。
+# 差分がある時だけ "chore: sync orchestration assets" としてコミットする。
+#
+# - ルート CLAUDE.md には触れない (プロジェクト固有メモは無傷。
+#   SDD メモは CLAUDE.md 内の @.claude/rules/sdd-workflow.md import で参照)
+# - コピーはファイル単位の上書きマージ。プロジェクト側で独自に追加した
+#   ファイルは残る。orchestration 側で削除されたファイルは自動では消えない
+#   ため、必要なら手動で削除する
+# =============================================================================
+name: Orchestration Sync
+
+on:
+  workflow_dispatch:
+  # 定期的に追従したい場合は以下を有効化
+  # schedule:
+  #   - cron: '0 21 * * 0'   # 毎週月曜 06:00 JST
+
+env:
+  # SDD ワークフロー一式の取り込み元 (template-init.yml と揃えること)
+  ORCHESTRATION_REPO: Hidano-Dev/orchestration-development-template
+
+jobs:
+  sync:
+    # テンプレートリポジトリ自身にはアセットを置かない (生成先専用)
+    if: github.event.repository.is_template == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Import latest orchestration assets
+        run: |
+          git clone --depth 1 --branch main --single-branch "https://github.com/${ORCHESTRATION_REPO}.git" /tmp/orch
+          for p in .claude .codex .kiro .agents AGENTS.md; do
+            cp -rf "/tmp/orch/$p" ./
+          done
+          rm -rf /tmp/orch
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: sync orchestration assets"
+          git push
