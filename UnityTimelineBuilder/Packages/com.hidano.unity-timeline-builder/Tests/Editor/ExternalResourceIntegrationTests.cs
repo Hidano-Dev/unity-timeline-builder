@@ -23,8 +23,8 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             Directory.CreateDirectory(_externalDirectory);
             var wav = Path.Combine(_externalDirectory, "external.wav");
             File.WriteAllBytes(wav, CreateSilentWave(48000));
-            RunFfmpeg("-y -i "" + wav + "" -codec:a libmp3lame -b:a 32k "" +
-                Path.Combine(_externalDirectory, "external.mp3") + """);
+            RunFfmpeg("-y -i \"" + wav + "\" -codec:a libmp3lame -b:a 32k \"" +
+                Path.Combine(_externalDirectory, "external.mp3") + "\"");
             File.Copy(GetProjectPath(FixtureDirectory + "/external-multiple-clips.fbx"),
                 Path.Combine(_externalDirectory, "external-multiple-clips.fbx"));
             File.WriteAllText(Path.Combine(_externalDirectory, "external-resource-integration.csv"),
