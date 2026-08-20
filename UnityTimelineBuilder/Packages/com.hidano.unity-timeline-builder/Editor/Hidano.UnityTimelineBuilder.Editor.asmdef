@@ -1,0 +1,18 @@
+{
+  "name": "Hidano.UnityTimelineBuilder.Editor",
+  "rootNamespace": "Hidano.UnityTimelineBuilder.Editor",
+  "references": [
+    "Unity.Timeline"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
