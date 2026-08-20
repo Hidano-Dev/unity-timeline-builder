@@ -99,3 +99,13 @@
 - validate-impl: GO(EditMode 40/40、CLI 3 系統合格)。非ブロッキング Warning 5 件は PR 本文に残課題として記載
 - 注記: .kiro/steering/ 未整備。今後 /kiro:steering の実行を推奨
 - PR レビューとマージ判断は人間が行う
+
+## PR フォローアップ: Copilot レビュー対応 — 2026-08-21T01:10:00+09:00
+
+- 依頼: 「Copilot のコメントを確認して」
+- Copilot 指摘(4 件 + suppressed 2 件): 設計で internal 指定の型が public。→ CsvSheetReader / SheetReadException / BuildSheetParser / ParseOutcome / ResolveContext / ExternalAssetImporter に加え、設計上 internal の ClipRow も internal 化。公開 API は TimelineBuilder / TimelineBuilderCli / Models 公開契約のみに。
+- 発見事項 1: ブランチに本セッション外のコミット 6dc0366(外部リソース統合テストの ffmpeg 書き換え + 手書き ASCII FBX fixture)が混入しており、構文エラーでコンパイル不能だった。修復内容: 文字列エスケープ修正 / NUnit `Has.Exactly().Items` 置換 / fixture パス修正 / アニメーション実体のない手書き FBX を Blender 生成の実 FBX(Walk・Run 内包)へ差し替え / 期待クリップ名を実 take 名 `Anim|Walk` に整合 / LogAssert.Expect 追加。
+- 発見事項 2: このリポジトリでは約 1 分間隔の自動コミット機構が働いており、作業途中の変更が随時コミットされる(6dc0366 も同機構によるコミット)。
+- 改善: ExternalAssetImporterTests の TearDown を AssetDatabase.DeleteAsset に変更し、Test_* .meta 残置(validate-impl Warning 3)を根治。蓄積残置物も削除。
+- 検証: EditMode テスト 39/39 パス(実 FBX 経路を含む)。push 済み(07161e4)、PR に対応コメント投稿済み。
+- 残課題の消化: validate-impl Warning のうち「AC 2.5 実 FBX 成功経路テスト」「テスト残置物」「internal 化」の 3 件がこの対応で解消。残りは verify-cli-batch.ps1 の -ProjectPath 省略時挙動とテンプレート CSV の LF のみ。
