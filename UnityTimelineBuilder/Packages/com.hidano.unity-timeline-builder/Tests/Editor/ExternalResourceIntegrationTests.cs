@@ -26,12 +26,9 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             File.WriteAllBytes(wav, CreateSilentWave(48000));
             RunFfmpeg("-y -i \"" + wav + "\" -codec:a libmp3lame -b:a 32k \"" +
                 Path.Combine(_externalDirectory, "external.mp3") + "\"");
-            File.Copy(GetProjectPath(FixtureDirectory + "/external-multiple-clips.fbx"),
-                Path.Combine(_externalDirectory, "external-multiple-clips.fbx"));
-            File.WriteAllText(Path.Combine(_externalDirectory, "external-resource-integration.csv"),
-                File.ReadAllText(GetProjectPath(FixtureDirectory + "/external-resource-integration.csv")));
-            File.WriteAllText(Path.Combine(_externalDirectory, "external-resource-mismatch.csv"),
-                File.ReadAllText(GetProjectPath(FixtureDirectory + "/external-resource-mismatch.csv")));
+            CopyFixture("external-multiple-clips.fbx", true);
+            CopyFixture("external-resource-integration.csv");
+            CopyFixture("external-resource-mismatch.csv");
             EnsureFolder(ImportDirectory);
             EnsureFolder(OutputDirectory);
         }
@@ -59,9 +56,22 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             });
 
             Assert.That(result.Success, Is.True, FormatErrors(result));
-            Assert.That(AssetDatabase.LoadAssetAtPath<AudioClip>(ImportDirectory + "/external.wav"), Is.Not.Null);
-            Assert.That(AssetDatabase.LoadAssetAtPath<AudioClip>(ImportDirectory + "/external.mp3"), Is.Not.Null);
-            Assert.That(AssetDatabase.LoadMainAssetAtPath(ImportDirectory + "/external-multiple-clips.fbx"), Is.Not.Null);
+            var importedWavPath = FindImportedAssetPath("external.wav");
+            var importedMp3Path = FindImportedAssetPath("external.mp3");
+            var importedFbxPath = FindImportedAssetPath("external-multiple-clips.fbx");
+            Assert.That(importedWavPath, Is.Not.Null);
+            Assert.That(importedMp3Path, Is.Not.Null);
+            Assert.That(importedFbxPath, Is.Not.Null);
+            Assert.That(AssetDatabase.LoadAssetAtPath<AudioClip>(importedWavPath), Is.Not.Null);
+            Assert.That(AssetDatabase.LoadAssetAtPath<AudioClip>(importedMp3Path), Is.Not.Null);
+            Assert.That(AssetDatabase.LoadMainAssetAtPath(importedFbxPath), Is.Not.Null);
+            var importedClipNames = AssetDatabase.LoadAllAssetsAtPath(importedFbxPath)
+                .OfType<AnimationClip>()
+                .Where(clip => clip.name.IndexOf("__preview__", StringComparison.OrdinalIgnoreCase) < 0)
+                .Select(clip => clip.name)
+                .ToArray();
+            Assert.That(importedClipNames, Does.Contain("Anim|Walk"));
+            Assert.That(importedClipNames, Does.Contain("Anim|Run"));
             var timeline = AssetDatabase.LoadAssetAtPath<TimelineAsset>(
                 OutputDirectory + "/ExternalResourceIntegration.playable");
             Assert.That(timeline, Is.Not.Null);
@@ -104,6 +114,29 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         {
             return Path.Combine(Directory.GetParent(Application.dataPath).FullName,
                 assetPath.Replace('/', Path.DirectorySeparatorChar));
+        }
+
+        private void CopyFixture(string fileName, bool copyMeta = false)
+        {
+            var sourcePath = GetProjectPath(FixtureDirectory + "/" + fileName);
+            var destinationPath = Path.Combine(_externalDirectory, fileName);
+            File.Copy(sourcePath, destinationPath);
+            if (copyMeta)
+                File.Copy(sourcePath + ".meta", destinationPath + ".meta");
+        }
+
+        private static string FindImportedAssetPath(string fileName)
+        {
+            var searchToken = Path.GetFileNameWithoutExtension(fileName);
+            var guids = AssetDatabase.FindAssets(searchToken, new[] { ImportDirectory });
+            for (var i = 0; i < guids.Length; i++)
+            {
+                var assetPath = AssetDatabase.GUIDToAssetPath(guids[i]);
+                if (string.Equals(Path.GetFileName(assetPath), fileName, StringComparison.OrdinalIgnoreCase))
+                    return assetPath;
+            }
+
+            return null;
         }
 
         private static void RunFfmpeg(string arguments)
