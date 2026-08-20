@@ -67,3 +67,14 @@
 - Command: `git checkout -b feature/timeline-prefab-builder`
 - Result: main 先端(spec ドキュメントコミット 4 件を含む)から feature ブランチを作成。ローカル main は origin/main(6fbd805)へ戻した(spec コミットは feature ブランチが保持)。
 - Branch/PR: feature/timeline-prefab-builder
+
+## Phase 5: 実装(spec-run タスク実行)— 2026-08-20T21:30:00+09:00
+
+- Command: `/kiro:spec-run timeline-prefab-builder`
+- Result: 全 22 タスクを codex exec で実行。21 タスク OK、1.1 のみ FAIL 記録(実装・コミットは完了。当時 codex が Unity Editor のインストールパス D:\UnityEditors を発見できずテスト未実行。パッケージ認識は 1.2 以降のコンパイル・テストで実質検証済み)。claude -p フォールバック: 0/22。
+- 環境対処 1: Unity 6000.0.36f1 は D:\UnityEditors\6000.0.36f1\Editor\Unity.exe に存在(Hub 標準パス外)。1.2 以降のタスクプロンプトにパスとテスト実行手順を明示して解消。
+- 環境対処 2: タスク 9.2 で Bash ツールの上限 10 分によるタイムアウト 1 回(working tree への影響なし)。バックグラウンド実行に切り替えて再実行し OK。
+- 補正: 一部 codex セッションで tasks.md のチェック更新漏れ → 全タスク [x] に補正しコミット(63b00bb)。
+- コミット: 73c6cc2(1.1)〜7ee9a75(9.5)+ 63b00bb(補正)
+- Reviewer: validate-impl 実行中(結果は Gate D 判定に記録)
+- Branch/PR: feature/timeline-prefab-builder
