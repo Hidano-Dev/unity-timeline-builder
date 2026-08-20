@@ -25,10 +25,8 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             if (Directory.Exists(_sourceDirectory))
                 Directory.Delete(_sourceDirectory, true);
 
-            var projectDirectory = Path.Combine(Directory.GetParent(Application.dataPath).FullName,
-                _importDirectory.Replace('/', Path.DirectorySeparatorChar));
-            if (Directory.Exists(projectDirectory))
-                Directory.Delete(projectDirectory, true);
+            // Directory.Delete ではフォルダの .meta が残るため AssetDatabase 経由で削除する
+            AssetDatabase.DeleteAsset(_importDirectory);
             AssetDatabase.Refresh();
         }
 
