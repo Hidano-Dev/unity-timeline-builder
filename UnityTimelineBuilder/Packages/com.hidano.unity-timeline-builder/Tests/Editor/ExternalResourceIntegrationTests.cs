@@ -11,7 +11,7 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
 {
     public sealed class ExternalResourceIntegrationTests
     {
-        private const string FixtureDirectory = "Assets/UnityTimelineBuilder/Tests/Fixtures";
+        private const string FixtureDirectory = "Packages/com.hidano.unity-timeline-builder/Tests/Fixtures";
         private const string ImportDirectory = "Assets/UnityTimelineBuilder/Tests/ExternalImported";
         private const string OutputDirectory = "Assets/UnityTimelineBuilder/Tests/ExternalIntegrationOutput";
         private string _externalDirectory;
