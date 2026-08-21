@@ -124,6 +124,14 @@
 - **Selected Approach**: Scene 直下に素の GameObject(名前 = アセット名)を新規作成し `PlayableDirector` を追加、`playableAsset` に TimelineAsset を割り当てる。既存 Prefab 生成はそのまま継続する(後方互換)。
 - **Rationale**: バインディングが Scene 完結のプレーンなシリアライズになり、オーバーライド起因の不具合を避けられる。Req 2.2 は「PlayableDirector を持つ GameObject の配置」であり Prefab 経由を要求しない。
 
+### Decision: Track 名照合の厳格性と重複時の扱い(validate-design レビュー反映)
+- **Context**: (1) Phase A の Track 名事前検証がカスタム TrackBuilder 登録(レジストリ拡張性)と衝突し得る。(2) 既存 TimelineAsset を明示参照した場合、同名 AnimationTrack が複数存在するケースの挙動が未定義だった。
+- **Selected Approach**:
+  1. Phase A の事前検証は組み込みキー `Animation` のクリップ行のみ厳格照合し、組み込み以外のキーのクリップ行が存在する構成(カスタム TrackBuilder)では Phase B の実 TimelineAsset 照合に委ねる
+  2. Track 名に一致する AnimationTrack が複数存在する場合は、GameObject 名重複(Req 4.5)と対称に専用エラー `BindTrackDuplicated`(重複 Track 名と件数をメッセージに含む)で構築を中断する
+- **Rationale**: カスタムトラックが AnimationTrack を生成する可能性を Phase A では否定できないため誤検出を避ける。同一ビルド生成 Timeline は `(trackType, trackName)` 集約で同名重複が構造的に発生しないため、重複エラーは既存 Timeline 参照時のみ実質的に発生する。`BindTrackNotFound` の使い回しは原因特定(Req 4 系の意図)を損なうため新コードとした。
+- **Follow-up**: カスタム TrackBuilder の外部公開シナリオが生じたら Phase A 検証規則を再検討(design.md の Revalidation Triggers に登録済み)。
+
 ## Risks & Mitigations
 - Phase B(Scene 生成中)の失敗で中途半端な状態が残る — 保存を最後の 1 回に集約し、失敗時は未保存のまま中断(既存 .unity は無傷)。エラーはすべて `BuildError` に集約して報告
 - 対話モードで利用者の未保存 Scene が失われる — `SaveCurrentModifiedScenesIfUserWantsTo()` を事前に呼び、キャンセル時は `SceneBuildCanceled` で中断。batchmode では確認なしで続行(CI 用途)

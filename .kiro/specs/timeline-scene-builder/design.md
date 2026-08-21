@@ -45,6 +45,7 @@
 - Scene 行の列仕様(行種別キー・列対応・必須性)の変更 → CSV テンプレート・列定義ドキュメント・パーサーの三者同期を再検証(7.3)
 - `BuildResult` / `BuildErrorCode` の形状変更 → CLI 利用側(CI スクリプト)と API 利用者への影響確認
 - 行種別予約キーの追加 → `TrackBuilderRegistry` の予約キーガードと衝突確認
+- カスタム TrackBuilder(`TrackBuilderRegistry.Register`)の外部公開シナリオが生じた場合 → Phase A の Track 名事前検証規則(組み込み `Animation` キーのみ厳格照合)を再検討
 - com.unity.timeline / Unity Editor のメジャー更新 → EditorSceneManager / SetGenericBinding の挙動再確認
 
 ## Architecture
@@ -395,7 +396,7 @@ internal sealed class SceneFactory
 - 探索範囲: Scene の全ルート GameObject 配下の全階層(Prefab インスタンス内部を含む)。**非アクティブ GameObject も含む**(`GetComponentsInChildren<Transform>(true)` 相当)。ただし本ツールが生成した Director 用 GameObject(そのルートのみ)は探索対象から除外する(名前を利用者が制御できないため。`research.md` の Decision 参照)
 - 一致規則: GameObject 名の完全一致(`StringComparison.Ordinal`、大文字小文字区別)。階層パス指定は非対応
 - 検証と適用(全 `SceneBind` 行を処理してエラーを収集。最初の失敗で打ち切らない):
-  1. Track 解決: `timeline.GetOutputTracks()` から `AnimationTrack` かつ Track 名 Ordinal 完全一致のものを取得。不在(名前不一致・AnimationTrack 以外しかない)→ `BindTrackNotFound`(4.7)
+  1. Track 解決: `timeline.GetOutputTracks()` から `AnimationTrack` かつ Track 名 Ordinal 完全一致のものを取得。不在(名前不一致・AnimationTrack 以外しかない)→ `BindTrackNotFound`(4.7)。**一致する AnimationTrack が複数存在する場合はバインド先を一意に特定できないため `BindTrackDuplicated` エラーとして中断する**(GameObject 名重複 4.5 と対称の扱い。同一ビルド生成 Timeline は `(trackType, trackName)` 集約により同名重複が発生しないため、実質的に既存 TimelineAsset を明示参照した場合の規則)
   2. GameObject 解決: 名前一致 0 件 → `BindTargetNotFound`(4.4)。2 件以上 → `BindTargetDuplicated`(重複した名前と件数をメッセージに含む)(4.5)
   3. Animator 取得: 一致 GameObject 自身に `Animator` がない → `BindTargetMissingAnimator`(4.6)。子の Animator は探索しない(バインド対象は名前で特定した GameObject 自身)
   4. `director.SetGenericBinding(track, animator)` を適用(4.1)
@@ -437,7 +438,7 @@ internal sealed class TrackBindingApplier
 - **Phase A 追加検証**(`ScenePlan != null` のとき。エラーは既存どおり収集・一括報告):
   - Timeline 参照(2.3, 2.4): `Scene` 行の resourcePath が空欄 → 同一ビルド生成の TimelineAsset を割り当て対象とする(暗黙参照)。`Assets/` 始まり → `AssetDatabase.LoadAssetAtPath<TimelineAsset>` で解決し、不在・型不一致は `SceneTimelineNotFound`。それ以外の値 → `SceneTimelineNotFound`
   - Prefab 解決(3.3, 3.4): 各 `ScenePrefab` 行の resourcePath を `Assets/` 配下パスとして `AssetDatabase.LoadAssetAtPath<GameObject>` で解決。`Assets/` 始まりでない・不在・GameObject アセットでない場合は `ScenePrefabInvalid`(行番号・参照パス付き)
-  - Track 名事前検証(4.7): 割り当て Timeline が同一ビルド生成の場合、クリップ行のうち trackType が `Animation` の trackName 集合と `SceneBind.TrackName` を Ordinal 照合。既存 Timeline の場合は `GetOutputTracks()` の AnimationTrack 名と照合。不一致は `BindTrackNotFound`。これにより Track 名の綴りミスを Scene 生成前(Phase A)で検出する
+  - Track 名事前検証(4.7): 割り当て Timeline が同一ビルド生成の場合、**組み込みキー `Animation` のクリップ行の trackName 集合とのみ** `SceneBind.TrackName` を Ordinal で厳格照合する。カスタム TrackBuilder が登録された構成(組み込み以外の trackType キーのクリップ行が存在する場合)では、カスタムトラックが AnimationTrack を生成する可能性を否定できないため Phase A では不一致をエラーにせず、Phase B の実 TimelineAsset 照合(TrackBindingApplier)に委ねる。既存 Timeline を明示参照する場合は `GetOutputTracks()` の AnimationTrack 名と照合する。不一致は `BindTrackNotFound`。これにより標準構成では Track 名の綴りミスを Scene 生成前(Phase A)で検出しつつ、レジストリ拡張性(将来のカスタムトラック)と矛盾しない
   - Scene 出力パス衝突: `{outputDirectory}/{sceneName}.unity` が TimelineAsset / Prefab の出力パスと衝突しないことを確認(Scene 名 = アセット名は拡張子が異なるため許容)
 - **Phase B 追加**: TimelineAsset・Prefab 生成後、`SceneBuildContext` を組み立てて `SceneFactory.TryCreate` を呼ぶ。失敗時は返却されたエラーで `BuildResult` 失敗を返す(このとき TimelineAsset / Prefab は生成済みのまま残る — ログにその旨を明示する)
 - 成功時: `BuildResult(true, timelinePath, prefabPath, scenePath, empty)` を返し、`[UnityTimelineBuilder] Scene: {scenePath}` をログ出力
@@ -487,6 +488,7 @@ namespace Hidano.UnityTimelineBuilder.Editor
         BindTargetMissingAnimator,   // 4.6: Animator コンポーネント欠落
         SceneWriteFailed,            // 2.1: Scene 保存失敗
         SceneBuildCanceled,          // 対話モードでの保存確認キャンセル
+        BindTrackDuplicated,         // Track 名に一致する AnimationTrack が複数(既存 Timeline 参照時)
     }
 }
 ```
@@ -559,7 +561,7 @@ namespace Hidano.UnityTimelineBuilder.Editor
 - Scene 構築失敗時、TimelineAsset / Prefab は生成済みのまま残る(既存の Phase B セマンティクスと同じ)。ログで「Timeline / Prefab は生成済み、Scene は未生成」を明示する
 
 ### Error Categories and Responses
-- **入力エラー(利用者起因)**: `RowValidationError`(Scene 行の必須欠落・重複・不正 Scene 名)/ `SceneTimelineNotFound` / `ScenePrefabInvalid` / `BindTrackNotFound` / `BindTargetNotFound` / `BindTargetDuplicated` / `BindTargetMissingAnimator` → 行番号・対象名(パス / Track 名 / GameObject 名)を含むメッセージで修正箇所を特定可能にする(1.6, 2.4, 3.4, 4.4–4.7)
+- **入力エラー(利用者起因)**: `RowValidationError`(Scene 行の必須欠落・重複・不正 Scene 名)/ `SceneTimelineNotFound` / `ScenePrefabInvalid` / `BindTrackNotFound` / `BindTrackDuplicated`(同名 AnimationTrack 重複。重複した Track 名と件数をメッセージに含む)/ `BindTargetNotFound` / `BindTargetDuplicated` / `BindTargetMissingAnimator` → 行番号・対象名(パス / Track 名 / GameObject 名)を含むメッセージで修正箇所を特定可能にする(1.6, 2.4, 3.4, 4.4–4.7)
 - **環境エラー(システム起因)**: `SceneWriteFailed`(SaveScene 失敗)→ 対象パスと Unity 側エラー内容を報告
 - **操作キャンセル**: `SceneBuildCanceled`(対話モードでの保存確認キャンセル)→ 何も変更せず中断
 - **CLI 写像**: 変更なし(Scene 系エラーはすべて exit 1)
@@ -579,7 +581,7 @@ namespace Hidano.UnityTimelineBuilder.Editor
 ### Integration Tests(EditMode / 実 AssetDatabase・EditorSceneManager 使用)
 1. Scene 行入り CSV → .unity 生成: Director GameObject の存在・`playableAsset` が生成 TimelineAsset を参照・Prefab インスタンスが `PrefabUtility.IsPartOfPrefabInstance` で真・バインド指定 Track の `GetGenericBinding` が対象 Animator を返すこと(2.1–2.3, 3.1, 3.2, 4.1)
 2. **永続化検証**: 保存後に `EditorSceneManager.OpenScene` で再オープンし、`GetGenericBinding` が保持されていること(4.2)。バインド指定のない Track が未設定のままであること(4.3)
-3. バインドエラー系: GameObject 不在・同名重複(非アクティブ含む)・Animator 欠落・Track 名不一致で各エラーコードが返り、**.unity が保存されない**こと(4.4–4.7)。複数不備が 1 回の実行で全件報告されること
+3. バインドエラー系: GameObject 不在・同名重複(非アクティブ含む)・Animator 欠落・Track 名不一致・既存 Timeline 内の同名 AnimationTrack 重複(`BindTrackDuplicated`)で各エラーコードが返り、**.unity が保存されない**こと(4.4–4.7)。複数不備が 1 回の実行で全件報告されること
 4. Phase A エラー系: Prefab パス不在 / `Assets/` 外・既存 Timeline パス不在で `ScenePrefabInvalid` / `SceneTimelineNotFound` が返り、Scene どころか Timeline 生成にも進まないこと(2.4, 3.4)
 5. 上書き再実行: 同一出力先へ 2 回実行し、`Overwriting Scene:` ログと .unity の GUID 維持を検証(2.5)
 6. E2E: 更新後の同梱テンプレート `timeline-template.csv`(+ フィクスチャ Prefab)をそのまま入力とし、Scene 構築込みで成功すること(7.1–7.3)。既存フォーマットのみの CSV で従来成果物が生成され `ScenePath == null` であること(1.5)

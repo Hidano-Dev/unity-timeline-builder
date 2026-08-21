@@ -34,3 +34,14 @@
   - Escalation: none
   - Retry: none
 - Branch/PR: n/a
+
+## Phase 3: 設計 — 2026-08-21T22:40:00+09:00
+
+- Command: `/kiro:spec-design timeline-scene-builder -y`
+- Result: design.md / research.md を生成。CSV 拡張は trackType 列の予約行種別キー（Scene/ScenePrefab/SceneBind）方式・1 シート 1 Scene。Scene 生成は NewScene(Single) + 全成功後に MarkSceneDirty→SaveScene のアトミック保存。同一ビルド生成 TimelineAsset は resourcePath 空欄の暗黙参照。Research Needed 6 項目はすべて research.md で決定済み。
+- Reviewer: `/kiro:validate-design timeline-scene-builder` — **GO**。機械チェック（要件トレーサビリティ 33 受入基準 / Boundary / File Structure Plan / 実コード整合）全合格。Critical Issue 2 件（Phase A Track 名検証とカスタムビルダー拡張性の衝突、同名 AnimationTrack 重複時の挙動未定義）は数行追記で解消可能と判定。
+- Gate B: AUTO-APPROVED
+  - Rationale: validate-design が GO（軽微な注記つき GO は許容）。注記 2 件は spec-design-agent の merge 再実行で design.md / research.md に反映済み（Phase A は組み込み Animation キーのみ厳格照合、同名 Track 重複は BindTrackDuplicated エラー新設）。新規依存・公開 API 破壊的変更・広範リファクタなし。
+  - Escalation: none
+  - Retry: 1 回（GO 付帯指摘 2 件の設計反映のための merge 再実行）
+- Branch/PR: n/a
