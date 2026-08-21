@@ -10,7 +10,7 @@
   "samples": [
     {
       "displayName": "Build Menu",
-      "description": "TimelineBuilder.Build() をメニュー (Tools > Unity Timeline Builder) から実行する Editor スクリプトのサンプルです。",
+      "description": "TimelineBuilder.Build() をメニュー (Tools > Hidano > Unity Timeline Builder) から実行する Editor スクリプトのサンプルです。",
       "path": "Samples~/BuildMenu"
     }
   ]

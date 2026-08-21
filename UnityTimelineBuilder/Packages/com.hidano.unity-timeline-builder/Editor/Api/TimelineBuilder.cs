@@ -174,9 +174,16 @@ namespace Hidano.UnityTimelineBuilder.Editor
             if (AssetDatabase.IsValidFolder(normalized))
                 return;
 
-            var projectRoot = Directory.GetParent(Application.dataPath).FullName;
-            Directory.CreateDirectory(Path.Combine(projectRoot, normalized));
-            AssetDatabase.Refresh();
+            var parts = normalized.Split('/');
+            var current = parts[0];
+            for (var i = 1; i < parts.Length; i++)
+            {
+                var next = current + "/" + parts[i];
+                if (!AssetDatabase.IsValidFolder(next)
+                    && string.IsNullOrEmpty(AssetDatabase.CreateFolder(current, parts[i])))
+                    throw new InvalidOperationException("Failed to create output folder: " + next);
+                current = next;
+            }
         }
 
         private static void EnsureBuiltInResolvers()
