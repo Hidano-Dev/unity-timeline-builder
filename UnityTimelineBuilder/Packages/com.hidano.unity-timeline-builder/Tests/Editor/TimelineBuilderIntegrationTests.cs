@@ -3,8 +3,11 @@ using System.IO;
 using System.Linq;
 using NUnit.Framework;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Timeline;
+using UnityEngine.Playables;
+using UnityEngine.TestTools;
 
 namespace Hidano.UnityTimelineBuilder.Editor.Tests
 {
@@ -16,10 +19,14 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         private const string OutputDirectory = "Assets/UnityTimelineBuilder/Tests/IntegrationOutput";
         private const string TimelineAssetPath = OutputDirectory + "/TimelineIntegration.playable";
         private const string PrefabAssetPath = OutputDirectory + "/TimelineIntegration.prefab";
+        private const string SceneAssetPath = OutputDirectory + "/TimelineIntegrationScene.unity";
+        private const string ScenePrefabPath = FixtureDirectory + "/TimelineIntegrationCharacter.prefab";
+        private const string SceneFixtureSheetPath = FixtureDirectory + "/scene-integration.csv";
 
         [SetUp]
         public void SetUp()
         {
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             EnsureFolder(FixtureDirectory);
             EnsureFolder(OutputDirectory);
 
@@ -39,6 +46,10 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         {
             AssetDatabase.DeleteAsset(PrefabAssetPath);
             AssetDatabase.DeleteAsset(TimelineAssetPath);
+            AssetDatabase.DeleteAsset(SceneAssetPath);
+            AssetDatabase.DeleteAsset(ScenePrefabPath);
+            if (File.Exists(GetProjectPath(SceneFixtureSheetPath)))
+                File.Delete(GetProjectPath(SceneFixtureSheetPath));
             AssetDatabase.DeleteAsset(AudioAssetPath);
             AssetDatabase.DeleteAsset(AnimationAssetPath);
             AssetDatabase.DeleteAsset(OutputDirectory);
@@ -114,6 +125,69 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
                 nestedOutput + "/TimelineIntegrationNested.playable"), Is.Not.Null);
         }
 
+        [Test]
+        public void BuildsConfiguredSceneAndReturnsScenePathAfterTimelineAndPrefab()
+        {
+            var character = new GameObject("Character");
+            character.AddComponent<Animator>();
+            PrefabUtility.SaveAsPrefabAsset(character, ScenePrefabPath);
+            UnityEngine.Object.DestroyImmediate(character);
+            File.WriteAllText(GetProjectPath(SceneFixtureSheetPath),
+                "trackType,trackName,clipName,startTime,clipIn,duration,resourcePath\n"
+                + "Animation,Character,Walk,1,0.5,3," + AnimationAssetPath + "\n"
+                + "Scene,TimelineIntegrationScene,\n"
+                + "ScenePrefab,,,,,," + ScenePrefabPath + "\n");
+            AssetDatabase.Refresh();
+
+            var result = TimelineBuilder.Build(new BuildRequest
+            {
+                SheetPath = GetProjectPath(SceneFixtureSheetPath),
+                OutputDirectory = OutputDirectory,
+                AssetName = "TimelineIntegration",
+                ImportDirectory = FixtureDirectory + "/Imported"
+            });
+
+            Assert.That(result.Success, Is.True, FormatErrors(result));
+            Assert.That(result.TimelineAssetPath, Is.EqualTo(TimelineAssetPath));
+            Assert.That(result.PrefabPath, Is.EqualTo(PrefabAssetPath));
+            Assert.That(result.ScenePath, Is.EqualTo(SceneAssetPath));
+            Assert.That(File.Exists(GetProjectPath(SceneAssetPath)), Is.True);
+        }
+
+        [Test]
+        public void SceneBuildFailureRetainsTimelineAndPrefabPathsButDoesNotReturnScenePath()
+        {
+            File.WriteAllText(GetProjectPath(SceneFixtureSheetPath),
+                "trackType,trackName,clipName,startTime,clipIn,duration,resourcePath\n"
+                + "Animation,Character,Walk,1,0.5,3," + AnimationAssetPath + "\n"
+                + "Scene,TimelineIntegrationScene,\n"
+                + "SceneBind,Character,,,,,MissingCharacter\n");
+            AssetDatabase.Refresh();
+            LogAssert.ignoreFailingMessages = true;
+            BuildResult result;
+            try
+            {
+                result = TimelineBuilder.Build(new BuildRequest
+                {
+                    SheetPath = GetProjectPath(SceneFixtureSheetPath),
+                    OutputDirectory = OutputDirectory,
+                    AssetName = "TimelineIntegration",
+                    ImportDirectory = FixtureDirectory + "/Imported"
+                });
+            }
+            finally
+            {
+                LogAssert.ignoreFailingMessages = false;
+            }
+
+            Assert.That(result.Success, Is.False);
+            Assert.That(result.TimelineAssetPath, Is.EqualTo(TimelineAssetPath));
+            Assert.That(result.PrefabPath, Is.EqualTo(PrefabAssetPath));
+            Assert.That(result.ScenePath, Is.Null);
+            Assert.That(result.Errors.Any(error => error.Code == BuildErrorCode.BindTargetNotFound), Is.True);
+            Assert.That(File.Exists(GetProjectPath(SceneAssetPath)), Is.False);
+        }
+
         private static string GetFixturePath()
         {
             var projectRoot = Directory.GetParent(Application.dataPath).FullName;
@@ -124,6 +198,11 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         {
             return Path.Combine(Directory.GetParent(Application.dataPath).FullName,
                 assetPath.Replace('/', Path.DirectorySeparatorChar));
+        }
+
+        private static string FormatErrors(BuildResult result)
+        {
+            return string.Join("\n", result.Errors.Select(error => error.Code + ": " + error.Message));
         }
 
         private static byte[] CreateSilentWave(int sampleCount)

@@ -20,9 +20,11 @@ namespace Hidano.UnityTimelineBuilder.Editor
         public IReadOnlyList<GameObject> PrefabAssets { get; }
         public string ScenePath { get; }
         public string DirectorObjectName { get; }
+        public string TimelineAssetPath { get; }
 
         public SceneBuildContext(SceneBuildPlan plan, TimelineAsset timeline,
-            IReadOnlyList<GameObject> prefabAssets, string scenePath, string directorObjectName)
+            IReadOnlyList<GameObject> prefabAssets, string scenePath, string directorObjectName,
+            string timelineAssetPath)
         {
             Plan = plan ?? throw new ArgumentNullException(nameof(plan));
             Timeline = timeline ?? throw new ArgumentNullException(nameof(timeline));
@@ -32,12 +34,15 @@ namespace Hidano.UnityTimelineBuilder.Editor
                 throw new ArgumentException("Scene path is required.", nameof(scenePath));
             if (string.IsNullOrWhiteSpace(directorObjectName))
                 throw new ArgumentException("Director object name is required.", nameof(directorObjectName));
+            if (string.IsNullOrWhiteSpace(timelineAssetPath))
+                throw new ArgumentException("Timeline asset path is required.", nameof(timelineAssetPath));
             if (prefabAssets.Any(asset => asset == null))
                 throw new ArgumentException("Prefab assets cannot contain null.", nameof(prefabAssets));
 
             PrefabAssets = new ReadOnlyCollection<GameObject>(new List<GameObject>(prefabAssets));
             ScenePath = scenePath;
             DirectorObjectName = directorObjectName;
+            TimelineAssetPath = timelineAssetPath;
         }
     }
 
@@ -63,10 +68,21 @@ namespace Hidano.UnityTimelineBuilder.Editor
 
             try
             {
-                var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                var scene = SceneManager.GetActiveScene();
+                if (!scene.IsValid() || scene.GetRootGameObjects().Length > 0)
+                    scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                var timeline = context.Timeline ??
+                    AssetDatabase.LoadAssetAtPath<TimelineAsset>(context.TimelineAssetPath);
+                if (timeline == null)
+                {
+                    resultErrors.Add(new BuildError(BuildErrorCode.SceneTimelineNotFound, null,
+                        context.TimelineAssetPath,
+                        $"TimelineAsset was not available at '{context.TimelineAssetPath}'."));
+                    return false;
+                }
                 var directorObject = new GameObject(context.DirectorObjectName);
                 var director = directorObject.AddComponent<PlayableDirector>();
-                director.playableAsset = context.Timeline;
+                director.playableAsset = timeline;
 
                 for (var index = 0; index < context.PrefabAssets.Count; index++)
                 {
@@ -80,7 +96,7 @@ namespace Hidano.UnityTimelineBuilder.Editor
                 }
 
                 if (resultErrors.Count == 0)
-                    resultErrors.AddRange(new TrackBindingApplier().Apply(director, context.Timeline,
+                    resultErrors.AddRange(new TrackBindingApplier().Apply(director, timeline,
                         scene, directorObject, context.Plan.Bindings));
 
                 if (resultErrors.Count > 0)
