@@ -71,8 +71,12 @@ namespace Hidano.UnityTimelineBuilder.Editor
                 var scene = SceneManager.GetActiveScene();
                 if (!scene.IsValid() || scene.GetRootGameObjects().Length > 0)
                     scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-                var timeline = context.Timeline ??
-                    AssetDatabase.LoadAssetAtPath<TimelineAsset>(context.TimelineAssetPath);
+                // NewScene(Single) は旧シーンのアンロード時に、マネージド参照しか残っていない
+                // アセットを破棄することがある。破棄済み参照は C# の null ではないため、
+                // UnityEngine.Object の null 判定でパスから再ロードする。
+                var timeline = context.Timeline;
+                if (timeline == null)
+                    timeline = AssetDatabase.LoadAssetAtPath<TimelineAsset>(context.TimelineAssetPath);
                 if (timeline == null)
                 {
                     resultErrors.Add(new BuildError(BuildErrorCode.SceneTimelineNotFound, null,
@@ -87,7 +91,10 @@ namespace Hidano.UnityTimelineBuilder.Editor
                 for (var index = 0; index < context.PrefabAssets.Count; index++)
                 {
                     var prefab = context.PrefabAssets[index];
-                    if (PrefabUtility.InstantiatePrefab(prefab, scene) == null)
+                    if (prefab == null)
+                        prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                            context.Plan.Prefabs[index].PrefabAssetPath);
+                    if (prefab == null || PrefabUtility.InstantiatePrefab(prefab, scene) == null)
                     {
                         resultErrors.Add(new BuildError(BuildErrorCode.ScenePrefabInvalid,
                             context.Plan.Prefabs[index].LineNumber, context.Plan.Prefabs[index].PrefabAssetPath,
