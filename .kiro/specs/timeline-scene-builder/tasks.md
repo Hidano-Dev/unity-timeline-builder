@@ -119,7 +119,7 @@
   - _Depends: 7_
   - _Boundary: SceneBuilderIntegrationTests_
 
-- [ ]* 8.4 CLI バッチ実行の受け入れ検証スクリプトを整備する
+- [x]* 8.4 CLI バッチ実行の受け入れ検証スクリプトを整備する
   - -batchmode / -executeMethod で Scene 行入り CSV を実行し、Scene パスログと exit code 0(受け入れ基準 6.1–6.3)を確認する
   - 失敗系入力で原因を特定できるログと exit code 1(受け入れ基準 6.4)を確認する
   - CLI 実装自体は既存テストとタスク 6 で担保されるため、実プロセス起動での確認は MVP 後に実施可能な補助的検証として延期可
