@@ -72,7 +72,7 @@
   - _Requirements: 2.3, 2.4, 3.3, 3.4, 4.7_
   - _Depends: 2.2_
 
-- [ ] 5.2 Phase B への Scene 生成統合と結果返却を実装する
+- [x] 5.2 Phase B への Scene 生成統合と結果返却を実装する
   - TimelineAsset・Prefab 生成後に検証済み Scene 構築コンテキストを組み立てて Scene 生成を実行し、失敗時は「Timeline / Prefab は生成済み、Scene は未生成」であることをログで明示して失敗結果を返す
   - 成功時は Scene パスを含む構築結果を返却し、Scene パスを Info ログに出力する
   - 公開メソッドのシグネチャ・引数検証は無変更とし、Scene 行なし入力では処理経路・成果物・ログ・返却値(Scene パス null)が従来と完全に一致する
