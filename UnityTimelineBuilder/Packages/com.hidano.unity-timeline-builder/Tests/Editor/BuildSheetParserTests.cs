@@ -189,5 +189,111 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             Assert.That(outcome.Errors.Select(error => error.LineNumber), Is.EquivalentTo(new int?[] { 3, 3 }));
             Assert.That(outcome.ScenePlan.Definition.SceneName, Is.EqualTo("Sample"));
         }
+
+        [Test]
+        public void AggregatesSceneRowsWithoutMixingThemIntoClipRowsWithHeader()
+        {
+            var rows = new List<IReadOnlyList<string>>
+            {
+                new[] { "trackType", "trackName", "clipName", "startTime", "clipIn", "duration", "resourcePath" },
+                new[] { "Scene", "Gameplay", "", "", "", "", "Assets/Gameplay.timeline" },
+                new[] { "ScenePrefab", "", "", "", "", "", "Assets/Hero.prefab" },
+                new[] { "SceneBind", "Walk", "", "", "", "", "Hero" },
+                new[] { "Audio", "Music", "Intro", "0", "0", "2", "Assets/intro.wav" }
+            };
+
+            var outcome = CreateParser().Parse(rows);
+
+            Assert.That(outcome.Errors, Is.Empty);
+            Assert.That(outcome.Rows, Has.Count.EqualTo(1));
+            Assert.That(outcome.Rows[0].TrackName, Is.EqualTo("Music"));
+            Assert.That(outcome.ScenePlan, Is.Not.Null);
+            Assert.That(outcome.ScenePlan.Definition.SceneName, Is.EqualTo("Gameplay"));
+            Assert.That(outcome.ScenePlan.Definition.TimelineAssetPath, Is.EqualTo("Assets/Gameplay.timeline"));
+            Assert.That(outcome.ScenePlan.Prefabs, Has.Count.EqualTo(1));
+            Assert.That(outcome.ScenePlan.Prefabs[0].PrefabAssetPath, Is.EqualTo("Assets/Hero.prefab"));
+            Assert.That(outcome.ScenePlan.Bindings, Has.Count.EqualTo(1));
+            Assert.That(outcome.ScenePlan.Bindings[0].TrackName, Is.EqualTo("Walk"));
+            Assert.That(outcome.ScenePlan.Bindings[0].GameObjectName, Is.EqualTo("Hero"));
+        }
+
+        [Test]
+        public void AggregatesSceneRowsWithoutMixingThemIntoClipRowsWithHeaderlessSevenColumns()
+        {
+            var rows = new List<IReadOnlyList<string>>
+            {
+                new[] { "Scene", "Gameplay", "", "", "", "", "Assets/Gameplay.timeline" },
+                new[] { "ScenePrefab", "", "", "", "", "", "Assets/Hero.prefab" },
+                new[] { "SceneBind", "Walk", "", "", "", "", "Hero" },
+                new[] { "Animation", "HeroTrack", "Run", "1", "0", "1.5", "Assets/run.anim" }
+            };
+
+            var outcome = CreateParser().Parse(rows);
+
+            Assert.That(outcome.Errors, Is.Empty);
+            Assert.That(outcome.Rows, Has.Count.EqualTo(1));
+            Assert.That(outcome.Rows[0].TrackType, Is.EqualTo("Animation"));
+            Assert.That(outcome.ScenePlan.Definition.SceneName, Is.EqualTo("Gameplay"));
+            Assert.That(outcome.ScenePlan.Prefabs[0].PrefabAssetPath, Is.EqualTo("Assets/Hero.prefab"));
+            Assert.That(outcome.ScenePlan.Bindings[0].GameObjectName, Is.EqualTo("Hero"));
+            Assert.That(outcome.WarningMessage, Is.Not.Null);
+        }
+
+        [Test]
+        public void ReportsAllSceneValidationErrorsWithSourceLineNumbers()
+        {
+            var orphanRows = new List<IReadOnlyList<string>>
+            {
+                new[] { "trackType", "trackName", "clipName", "startTime", "clipIn", "duration", "resourcePath" },
+                new[] { "ScenePrefab", "", "", "", "", "", "Assets/Hero.prefab" },
+                new[] { "SceneBind", "Walk", "", "", "", "", "Hero" },
+            };
+
+            var orphanOutcome = CreateParser().Parse(orphanRows);
+
+            Assert.That(orphanOutcome.Rows, Is.Empty);
+            Assert.That(orphanOutcome.Errors.Select(error => error.LineNumber),
+                Is.EquivalentTo(new int?[] { 2, 3 }));
+            Assert.That(orphanOutcome.Errors.All(error => error.Code == BuildErrorCode.RowValidationError), Is.True);
+
+            var duplicateAndInvalidRows = new List<IReadOnlyList<string>>
+            {
+                new[] { "trackType", "trackName", "clipName", "startTime", "clipIn", "duration", "resourcePath" },
+                new[] { "Scene", "Bad/Scene", "", "", "", "", "" },
+                new[] { "Scene", "Valid", "", "", "", "", "" },
+                new[] { "SceneBind", "Walk", "", "", "", "", "Hero2" }
+            };
+
+            var duplicateAndInvalidOutcome = CreateParser().Parse(duplicateAndInvalidRows);
+
+            Assert.That(duplicateAndInvalidOutcome.Rows, Is.Empty);
+            Assert.That(duplicateAndInvalidOutcome.Errors.Select(error => error.LineNumber),
+                Is.EquivalentTo(new int?[] { 2, 3 }));
+            Assert.That(duplicateAndInvalidOutcome.Errors.All(error => error.Code == BuildErrorCode.RowValidationError), Is.True);
+        }
+
+        [Test]
+        public void KeepsScenePlanNullAndClipParsingUnchangedForLegacyInput()
+        {
+            var rows = new List<IReadOnlyList<string>>
+            {
+                new[] { "trackType", "trackName", "clipName", "startTime", "clipIn", "duration", "resourcePath" },
+                new[] { "Audio", "BGM", "Intro", "1.25", "0.5", "3", "Assets/intro.wav" }
+            };
+
+            var outcome = CreateParser().Parse(rows);
+
+            Assert.That(outcome.Errors, Is.Empty);
+            Assert.That(outcome.ScenePlan, Is.Null);
+            Assert.That(outcome.Rows, Has.Count.EqualTo(1));
+            Assert.That(outcome.Rows[0].LineNumber, Is.EqualTo(2));
+            Assert.That(outcome.Rows[0].TrackType, Is.EqualTo("Audio"));
+            Assert.That(outcome.Rows[0].TrackName, Is.EqualTo("BGM"));
+            Assert.That(outcome.Rows[0].ClipName, Is.EqualTo("Intro"));
+            Assert.That(outcome.Rows[0].StartTime, Is.EqualTo(1.25));
+            Assert.That(outcome.Rows[0].ClipIn, Is.EqualTo(0.5));
+            Assert.That(outcome.Rows[0].Duration, Is.EqualTo(3));
+            Assert.That(outcome.Rows[0].ResourcePath, Is.EqualTo("Assets/intro.wav"));
+        }
     }
 }
