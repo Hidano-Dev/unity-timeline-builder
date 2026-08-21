@@ -110,7 +110,7 @@
   - _Requirements: 4.1, 4.4, 4.5, 4.6, 4.7_
   - _Boundary: TrackBindingApplierTests_
 
-- [ ] 8.3 (P) E2E テスト(CSV → .unity・テンプレート・後方互換)を追加する
+- [x] 8.3 (P) E2E テスト(CSV → .unity・テンプレート・後方互換)を追加する
   - 更新後の同梱テンプレート(+ フィクスチャ Prefab)をそのまま入力とし、Scene 構築込みで成功することでドキュメントとパーサー仕様の一致を自動担保する
   - 既存フォーマットのみの CSV で従来成果物が生成され、Scene パスが null であること(後方互換)を検証する
   - Prefab パス不在 / Assets/ 外・既存 Timeline パス不在で Phase A エラーとなり Timeline 生成にも進まないことを検証する
