@@ -94,6 +94,26 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
                 Is.SameAs(AssetDatabase.LoadAssetAtPath<AnimationClip>(AnimationAssetPath)));
         }
 
+        [Test]
+        public void CreatesMissingOutputDirectoryAutomatically()
+        {
+            var nestedOutput = OutputDirectory + "/Nested/Deep";
+            Assert.That(AssetDatabase.IsValidFolder(nestedOutput), Is.False);
+
+            var result = TimelineBuilder.Build(new BuildRequest
+            {
+                SheetPath = GetFixturePath(),
+                OutputDirectory = nestedOutput,
+                AssetName = "TimelineIntegrationNested",
+                ImportDirectory = FixtureDirectory + "/Imported"
+            });
+
+            Assert.That(result.Success, Is.True, string.Join("\n", result.Errors.Select(error => error.Message)));
+            Assert.That(AssetDatabase.IsValidFolder(nestedOutput), Is.True);
+            Assert.That(AssetDatabase.LoadAssetAtPath<TimelineAsset>(
+                nestedOutput + "/TimelineIntegrationNested.playable"), Is.Not.Null);
+        }
+
         private static string GetFixturePath()
         {
             var projectRoot = Directory.GetParent(Application.dataPath).FullName;

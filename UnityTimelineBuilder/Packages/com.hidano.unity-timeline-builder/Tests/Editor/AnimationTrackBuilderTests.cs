@@ -54,5 +54,31 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
                 Object.DestroyImmediate(timeline);
             }
         }
+
+        [Test]
+        public void FallsBackToAssetLengthAndNameWhenOptionalValuesAreEmpty()
+        {
+            var timeline = ScriptableObject.CreateInstance<TimelineAsset>();
+            var animation = new AnimationClip { name = "Walk" };
+            animation.SetCurve(string.Empty, typeof(Transform), "m_LocalPosition.x", AnimationCurve.Linear(0f, 0f, 2f, 1f));
+            try
+            {
+                var builder = new AnimationTrackBuilder();
+                var track = builder.CreateTrack(timeline, "Character");
+                var row = new ClipRow(2, "Animation", "Character", "", 1.0, 0, null, "walk.anim");
+
+                builder.AddClip(track, row, animation);
+
+                var clips = track.GetClips().ToArray();
+                Assert.That(clips, Has.Length.EqualTo(1));
+                Assert.That(clips[0].duration, Is.EqualTo(animation.length).Within(0.0001));
+                Assert.That(clips[0].displayName, Is.EqualTo("Walk"));
+            }
+            finally
+            {
+                Object.DestroyImmediate(animation);
+                Object.DestroyImmediate(timeline);
+            }
+        }
     }
 }

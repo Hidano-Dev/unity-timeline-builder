@@ -82,7 +82,75 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
 
             Assert.That(outcome.Errors, Has.Count.EqualTo(1));
             Assert.That(outcome.Errors[0].LineNumber, Is.EqualTo(1));
-            Assert.That(outcome.Errors[0].Message, Does.Contain("clipName"));
+            Assert.That(outcome.Errors[0].Message, Does.Contain("resourcePath"));
+            Assert.That(outcome.Errors[0].Message, Does.Not.Contain("clipName"));
+            Assert.That(outcome.Errors[0].Message, Does.Not.Contain("duration"));
+        }
+
+        [Test]
+        public void AllowsEmptyOptionalClipNameAndDuration()
+        {
+            var rows = new List<IReadOnlyList<string>>
+            {
+                new[] { "trackType", "trackName", "clipName", "startTime", "clipIn", "duration", "resourcePath" },
+                new[] { "Audio", "BGM", "", "0.5", "0", "", "Assets/intro.wav" }
+            };
+
+            var outcome = CreateParser().Parse(rows);
+
+            Assert.That(outcome.Errors, Is.Empty);
+            Assert.That(outcome.Rows, Has.Count.EqualTo(1));
+            Assert.That(outcome.Rows[0].ClipName, Is.Empty);
+            Assert.That(outcome.Rows[0].Duration, Is.Null);
+        }
+
+        [Test]
+        public void AllowsHeaderWithoutOptionalColumns()
+        {
+            var rows = new List<IReadOnlyList<string>>
+            {
+                new[] { "trackType", "trackName", "startTime", "clipIn", "resourcePath" },
+                new[] { "Audio", "BGM", "0", "0", "Assets/intro.wav" }
+            };
+
+            var outcome = CreateParser().Parse(rows);
+
+            Assert.That(outcome.Errors, Is.Empty);
+            Assert.That(outcome.Rows, Has.Count.EqualTo(1));
+            Assert.That(outcome.Rows[0].ClipName, Is.Empty);
+            Assert.That(outcome.Rows[0].Duration, Is.Null);
+        }
+
+        [Test]
+        public void RejectsExplicitNonPositiveDurationEvenThoughEmptyIsAllowed()
+        {
+            var rows = new List<IReadOnlyList<string>>
+            {
+                new[] { "trackType", "trackName", "clipName", "startTime", "clipIn", "duration", "resourcePath" },
+                new[] { "Audio", "BGM", "Intro", "0", "0", "0", "Assets/intro.wav" }
+            };
+
+            var outcome = CreateParser().Parse(rows);
+
+            Assert.That(outcome.Rows, Is.Empty);
+            Assert.That(outcome.Errors, Has.Count.EqualTo(1));
+            Assert.That(outcome.Errors[0].Message, Does.Contain("duration"));
+        }
+
+        [Test]
+        public void StripsSurroundingQuotesFromResourcePath()
+        {
+            var rows = new List<IReadOnlyList<string>>
+            {
+                new[] { "trackType", "trackName", "clipName", "startTime", "clipIn", "duration", "resourcePath" },
+                new[] { "Audio", "BGM", "Intro", "0", "0", "1", "\"C:\\Media\\my intro.wav\"" }
+            };
+
+            var outcome = CreateParser().Parse(rows);
+
+            Assert.That(outcome.Errors, Is.Empty);
+            Assert.That(outcome.Rows, Has.Count.EqualTo(1));
+            Assert.That(outcome.Rows[0].ResourcePath, Is.EqualTo("C:\\Media\\my intro.wav"));
         }
     }
 }

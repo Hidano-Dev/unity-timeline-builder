@@ -9,11 +9,14 @@ namespace Hidano.UnityTimelineBuilder.Editor
         public string ClipName { get; }
         public double StartTime { get; }
         public double ClipIn { get; }
-        public double Duration { get; }
+
+        /// <summary>クリップの長さ(秒)。null の場合はアセットの長さを使用する。</summary>
+        public double? Duration { get; }
+
         public string ResourcePath { get; }
 
         public ClipRow(int lineNumber, string trackType, string trackName, string clipName,
-            double startTime, double clipIn, double duration, string resourcePath)
+            double startTime, double clipIn, double? duration, string resourcePath)
         {
             LineNumber = lineNumber;
             TrackType = trackType;
