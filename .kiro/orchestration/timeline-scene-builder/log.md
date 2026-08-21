@@ -98,3 +98,11 @@ claude -p フォールバック: 0/16 タスク（Codex 使用制限は未発生
 全フェーズ完了。ゲート判定: Gate S = CONFIRMED（定例確認）、Gate A〜E = AUTO-APPROVED（エスカレーション 0 件）。
 残課題: (1) package.json 0.2.0 / CHANGELOG / README 更新（リリース前）、(2) SceneFactory の空 Scene 再利用の設計差分、(3) 8.4 CLI 実プロセス検証（Editor 停止時に scripts/verify-cli-batch.ps1）、(4) .kiro/steering/ が空 — /kiro:steering の整備を推奨。
 PR レビューとマージ判断は人間が行う。
+
+## 追記: PR 後のフォローアップ — 2026-08-22
+
+- 残課題 (1): ユーザー判断により不要（未パブリッシュのためバージョンアップ・CHANGELOG 更新は行わない）。
+- 残課題 (3): 完了。Editor 終了後に `scripts/verify-cli-batch.ps1` を実行し **合格**（exit code: success=0 / build-failure=1 / argument-failure=2、TimelineAsset・Prefab・Scene の生成とログパターンを確認、後始末済み）。Req 6.1–6.4 の実プロセス検証完了。
+  - 実行時の注記: `$PSScriptRoot` が解決されない呼び出し環境では `-ProjectPath` の明示指定が必要。
+  - 付随修正: 検証用一時フィクスチャ（BatchAcceptanceTemp/batch-acceptance.csv +.meta）がタスクコミットに誤追跡されていたため削除（2c93334）。
+- 残り: (2) SceneFactory の設計差分（軽微・実害なし）、(4) steering 整備の推奨。
