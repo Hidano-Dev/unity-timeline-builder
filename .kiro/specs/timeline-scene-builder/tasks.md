@@ -56,7 +56,7 @@
   - _Requirements: 2.1, 2.2, 2.5, 3.1, 3.2, 4.2_
   - _Depends: 3.1_
 
-- [ ] 4. (P) TrackBuilderRegistry に予約行種別キーの登録拒否ガードを追加する
+- [x] 4. (P) TrackBuilderRegistry に予約行種別キーの登録拒否ガードを追加する
   - Scene 系予約キーと衝突するカスタム TrackBuilder の登録を拒否する
   - 完了条件: 予約キー(大文字小文字無視)での登録が拒否されることを確認する単体テストが成功する
   - _Requirements: 1.2_
