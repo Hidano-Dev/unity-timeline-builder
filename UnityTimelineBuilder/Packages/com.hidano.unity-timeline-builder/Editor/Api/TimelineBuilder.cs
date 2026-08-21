@@ -151,7 +151,8 @@ namespace Hidano.UnityTimelineBuilder.Editor
                     sceneValidation.PrefabAssets, scenePath, assetName,
                     string.IsNullOrWhiteSpace(parsed.ScenePlan.Definition.TimelineAssetPath)
                         ? timelinePath
-                        : parsed.ScenePlan.Definition.TimelineAssetPath);
+                        : parsed.ScenePlan.Definition.TimelineAssetPath,
+                    prefabPath);
                 if (!new SceneFactory().TryCreate(sceneContext, out var createdScenePath,
                     out var sceneErrors))
                 {

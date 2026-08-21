@@ -21,10 +21,11 @@ namespace Hidano.UnityTimelineBuilder.Editor
         public string ScenePath { get; }
         public string DirectorObjectName { get; }
         public string TimelineAssetPath { get; }
+        public string DirectorPrefabPath { get; }
 
         public SceneBuildContext(SceneBuildPlan plan, TimelineAsset timeline,
             IReadOnlyList<GameObject> prefabAssets, string scenePath, string directorObjectName,
-            string timelineAssetPath)
+            string timelineAssetPath, string directorPrefabPath = null)
         {
             Plan = plan ?? throw new ArgumentNullException(nameof(plan));
             Timeline = timeline ?? throw new ArgumentNullException(nameof(timeline));
@@ -43,6 +44,7 @@ namespace Hidano.UnityTimelineBuilder.Editor
             ScenePath = scenePath;
             DirectorObjectName = directorObjectName;
             TimelineAssetPath = timelineAssetPath;
+            DirectorPrefabPath = directorPrefabPath;
         }
     }
 
@@ -84,8 +86,10 @@ namespace Hidano.UnityTimelineBuilder.Editor
                         $"TimelineAsset was not available at '{context.TimelineAssetPath}'."));
                     return false;
                 }
-                var directorObject = new GameObject(context.DirectorObjectName);
-                var director = directorObject.AddComponent<PlayableDirector>();
+                var directorObject = CreateDirectorObject(context, scene);
+                var director = directorObject.GetComponent<PlayableDirector>();
+                if (director == null)
+                    director = directorObject.AddComponent<PlayableDirector>();
                 director.playableAsset = timeline;
 
                 for (var index = 0; index < context.PrefabAssets.Count; index++)
@@ -129,6 +133,23 @@ namespace Hidano.UnityTimelineBuilder.Editor
                     $"Failed to build Scene at '{context.ScenePath}': {exception.Message}"));
                 return false;
             }
+        }
+
+        /// <summary>生成済み Director Prefab があればそのインスタンスを配置し、無ければ素の GameObject を作る。</summary>
+        private static GameObject CreateDirectorObject(SceneBuildContext context, Scene scene)
+        {
+            if (!string.IsNullOrWhiteSpace(context.DirectorPrefabPath))
+            {
+                var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(context.DirectorPrefabPath);
+                if (prefab != null && PrefabUtility.InstantiatePrefab(prefab, scene) is GameObject instance)
+                {
+                    if (!string.Equals(instance.name, context.DirectorObjectName, StringComparison.Ordinal))
+                        instance.name = context.DirectorObjectName;
+                    return instance;
+                }
+            }
+
+            return new GameObject(context.DirectorObjectName);
         }
 
         private static string ProjectPath(string assetPath)
