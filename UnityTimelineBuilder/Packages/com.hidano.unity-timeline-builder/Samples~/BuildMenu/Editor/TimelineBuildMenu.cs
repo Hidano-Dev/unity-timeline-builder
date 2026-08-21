@@ -9,7 +9,7 @@ namespace Hidano.UnityTimelineBuilder.Samples.Editor
     {
         private const string OutputDirectory = "Assets/UnityTimelineBuilder/Generated";
 
-        [MenuItem("Tools/Unity Timeline Builder/Build From Sheet...")]
+        [MenuItem("Tools/Hidano/Unity Timeline Builder/Build From Sheet...")]
         public static void BuildFromSheet()
         {
             var sheetPath = EditorUtility.OpenFilePanelWithFilters(

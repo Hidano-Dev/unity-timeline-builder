@@ -109,6 +109,7 @@ namespace Hidano.UnityTimelineBuilder.Editor
 
             try
             {
+                EnsureOutputDirectory(request.OutputDirectory);
                 var timeline = new TimelineAssetFactory().Create(resolvedRows, timelinePath);
                 new PrefabFactory().Create(timeline, prefabPath, assetName);
                 Debug.Log("[UnityTimelineBuilder] TimelineAsset: " + timelinePath);
@@ -164,6 +165,18 @@ namespace Hidano.UnityTimelineBuilder.Editor
         private static string CombineAssetPath(string directory, string fileName)
         {
             return directory.Replace('\\', '/').TrimEnd('/') + "/" + fileName;
+        }
+
+        /// <summary>AssetDatabase.CreateAsset は親フォルダを作らないため、出力先を事前に用意する。</summary>
+        private static void EnsureOutputDirectory(string outputDirectory)
+        {
+            var normalized = outputDirectory.Replace('\\', '/').TrimEnd('/');
+            if (AssetDatabase.IsValidFolder(normalized))
+                return;
+
+            var projectRoot = Directory.GetParent(Application.dataPath).FullName;
+            Directory.CreateDirectory(Path.Combine(projectRoot, normalized));
+            AssetDatabase.Refresh();
         }
 
         private static void EnsureBuiltInResolvers()

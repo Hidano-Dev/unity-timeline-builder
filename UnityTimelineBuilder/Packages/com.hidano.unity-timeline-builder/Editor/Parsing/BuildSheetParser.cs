@@ -23,9 +23,14 @@ namespace Hidano.UnityTimelineBuilder.Editor
     /// <summary>構築情報のヘッダー認識、列マッピング、行検証を行うパーサー。</summary>
     internal sealed class BuildSheetParser
     {
-        private static readonly string[] RequiredColumns =
+        private static readonly string[] ColumnOrder =
         {
             "trackType", "trackName", "clipName", "startTime", "clipIn", "duration", "resourcePath"
+        };
+
+        private static readonly string[] RequiredColumns =
+        {
+            "trackType", "trackName", "startTime", "clipIn", "resourcePath"
         };
 
         private readonly Func<string, bool> isKnownTrackType;
@@ -87,7 +92,7 @@ namespace Hidano.UnityTimelineBuilder.Editor
         private void ParseRow(IReadOnlyList<string> fields, int lineNumber, IReadOnlyDictionary<string, int> indexes,
             List<ClipRow> rows, List<BuildError> errors)
         {
-            var missing = RequiredColumns.Where(column => !TryGet(fields, indexes[column], out _)).ToArray();
+            var missing = RequiredColumns.Where(column => !TryGetValue(fields, indexes, column, out _)).ToArray();
             if (missing.Length > 0)
             {
                 errors.Add(new BuildError(BuildErrorCode.RowValidationError, lineNumber, null,
@@ -95,17 +100,26 @@ namespace Hidano.UnityTimelineBuilder.Editor
                 return;
             }
 
-            var trackType = Get(fields, indexes["trackType"]);
-            var trackName = Get(fields, indexes["trackName"]);
-            var clipName = Get(fields, indexes["clipName"]);
-            var resourcePath = Get(fields, indexes["resourcePath"]);
+            var trackType = GetValue(fields, indexes, "trackType");
+            var trackName = GetValue(fields, indexes, "trackName");
+            var clipName = GetValue(fields, indexes, "clipName");
+            var resourcePath = StripSurroundingQuotes(GetValue(fields, indexes, "resourcePath"));
             if (!isKnownTrackType(trackType))
                 errors.Add(new BuildError(BuildErrorCode.UnknownTrackType, lineNumber, null, "未対応のトラック種別です: " + trackType));
 
             var valid = true;
-            var startTime = ParseNumber(Get(fields, indexes["startTime"]), "startTime", lineNumber, errors, ref valid);
-            var clipIn = ParseNumber(Get(fields, indexes["clipIn"]), "clipIn", lineNumber, errors, ref valid);
-            var duration = ParseNumber(Get(fields, indexes["duration"]), "duration", lineNumber, errors, ref valid);
+            var startTime = ParseNumber(GetValue(fields, indexes, "startTime"), "startTime", lineNumber, errors, ref valid);
+            var clipIn = ParseNumber(GetValue(fields, indexes, "clipIn"), "clipIn", lineNumber, errors, ref valid);
+            double? duration = null;
+            if (TryGetValue(fields, indexes, "duration", out var durationText))
+            {
+                duration = ParseNumber(durationText.Trim(), "duration", lineNumber, errors, ref valid);
+                if (duration <= 0)
+                {
+                    AddRangeError(lineNumber, "duration は 0 より大きく指定してください。", errors);
+                    valid = false;
+                }
+            }
             if (startTime < 0)
             {
                 AddRangeError(lineNumber, "startTime は 0 以上で指定してください。", errors);
@@ -114,11 +128,6 @@ namespace Hidano.UnityTimelineBuilder.Editor
             if (clipIn < 0)
             {
                 AddRangeError(lineNumber, "clipIn は 0 以上で指定してください。", errors);
-                valid = false;
-            }
-            if (duration <= 0)
-            {
-                AddRangeError(lineNumber, "duration は 0 より大きく指定してください。", errors);
                 valid = false;
             }
             if (valid && isKnownTrackType(trackType))
@@ -137,18 +146,29 @@ namespace Hidano.UnityTimelineBuilder.Editor
             return result;
         }
 
-        private static bool TryGet(IReadOnlyList<string> fields, int index, out string value)
+        private static bool TryGetValue(IReadOnlyList<string> fields, IReadOnlyDictionary<string, int> indexes,
+            string column, out string value)
         {
             value = null;
-            if (index < 0 || index >= fields.Count)
+            if (!indexes.TryGetValue(column, out var index) || index < 0 || index >= fields.Count)
                 return false;
             value = fields[index];
             return !string.IsNullOrWhiteSpace(value);
         }
 
-        private static string Get(IReadOnlyList<string> fields, int index) => fields[index].Trim();
+        private static string GetValue(IReadOnlyList<string> fields, IReadOnlyDictionary<string, int> indexes, string column)
+            => TryGetValue(fields, indexes, column, out var value) ? value.Trim() : string.Empty;
+
+        /// <summary>エクスプローラーの「パスのコピー」等で付くダブルクォート囲みを外す。</summary>
+        private static string StripSurroundingQuotes(string value)
+        {
+            if (value.Length >= 2 && value[0] == '"' && value[value.Length - 1] == '"')
+                return value.Substring(1, value.Length - 2).Trim();
+            return value;
+        }
+
         private static void AddRangeError(int lineNumber, string message, List<BuildError> errors) => errors.Add(new BuildError(BuildErrorCode.RowValidationError, lineNumber, null, message));
         private static bool IsTrackTypeHeader(string value) => string.Equals((value ?? string.Empty).Trim(), "trackType", StringComparison.OrdinalIgnoreCase);
-        private static Dictionary<string, int> DefaultColumnIndexes() => RequiredColumns.Select((name, index) => new { name, index }).ToDictionary(item => item.name, item => item.index, StringComparer.OrdinalIgnoreCase);
+        private static Dictionary<string, int> DefaultColumnIndexes() => ColumnOrder.Select((name, index) => new { name, index }).ToDictionary(item => item.name, item => item.index, StringComparer.OrdinalIgnoreCase);
     }
 }

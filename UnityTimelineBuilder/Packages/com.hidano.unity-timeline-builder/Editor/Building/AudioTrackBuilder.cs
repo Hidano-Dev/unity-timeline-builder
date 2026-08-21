@@ -38,8 +38,8 @@ namespace Hidano.UnityTimelineBuilder.Editor
             var timelineClip = audioTrack.CreateClip<AudioPlayableAsset>();
             timelineClip.start = row.StartTime;
             timelineClip.clipIn = row.ClipIn;
-            timelineClip.duration = row.Duration;
-            timelineClip.displayName = row.ClipName;
+            timelineClip.duration = row.Duration ?? audioClip.length;
+            timelineClip.displayName = string.IsNullOrWhiteSpace(row.ClipName) ? audioClip.name : row.ClipName;
             var playableAsset = timelineClip.asset as AudioPlayableAsset;
             if (playableAsset == null)
                 throw new InvalidOperationException("AudioTrack created a non-audio playable asset.");

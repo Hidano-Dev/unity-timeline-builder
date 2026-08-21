@@ -42,8 +42,8 @@ namespace Hidano.UnityTimelineBuilder.Editor
             playableAsset.clip = animationClip;
             timelineClip.start = row.StartTime;
             timelineClip.clipIn = row.ClipIn;
-            timelineClip.duration = row.Duration;
-            timelineClip.displayName = row.ClipName;
+            timelineClip.duration = row.Duration ?? animationClip.length;
+            timelineClip.displayName = string.IsNullOrWhiteSpace(row.ClipName) ? animationClip.name : row.ClipName;
         }
     }
 }
