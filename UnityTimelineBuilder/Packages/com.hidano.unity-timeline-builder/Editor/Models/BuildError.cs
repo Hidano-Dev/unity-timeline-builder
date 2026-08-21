@@ -12,7 +12,16 @@ namespace Hidano.UnityTimelineBuilder.Editor
         ResourceTypeMismatch,
         ImportFailed,
         OutputWriteFailed,
-        Unexpected
+        Unexpected,
+        SceneTimelineNotFound,
+        ScenePrefabInvalid,
+        BindTrackNotFound,
+        BindTargetNotFound,
+        BindTargetDuplicated,
+        BindTargetMissingAnimator,
+        SceneWriteFailed,
+        SceneBuildCanceled,
+        BindTrackDuplicated
     }
 
     /// <summary>構築エラーの詳細。該当しない行番号・パスは null または空文字になる。</summary>

@@ -33,6 +33,22 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             Assert.That(result.Errors[0], Is.SameAs(error));
             Assert.That(result.TimelineAssetPath, Is.Null);
             Assert.That(result.PrefabPath, Is.Null);
+            Assert.That(result.ScenePath, Is.Null);
+        }
+
+        [Test]
+        public void FiveArgumentBuildResultRetainsScenePathAndAllValues()
+        {
+            var errors = new[] { new BuildError(BuildErrorCode.SceneWriteFailed, null, "Assets/Scenes/Shot01.unity", "保存に失敗しました") };
+            var result = new BuildResult(false, "Assets/Timelines/Shot01.playable", "Assets/Prefabs/Shot01.prefab",
+                "Assets/Scenes/Shot01.unity", errors);
+
+            Assert.That(result.Success, Is.False);
+            Assert.That(result.TimelineAssetPath, Is.EqualTo("Assets/Timelines/Shot01.playable"));
+            Assert.That(result.PrefabPath, Is.EqualTo("Assets/Prefabs/Shot01.prefab"));
+            Assert.That(result.ScenePath, Is.EqualTo("Assets/Scenes/Shot01.unity"));
+            Assert.That(result.Errors, Has.Count.EqualTo(1));
+            Assert.That(result.Errors[0].Code, Is.EqualTo(BuildErrorCode.SceneWriteFailed));
         }
 
         [Test]
@@ -42,10 +58,14 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             {
                 "ArgumentInvalid", "SheetNotFound", "SheetParseError", "RowValidationError",
                 "UnknownTrackType", "ResourceNotFound", "ResourceTypeMismatch", "ImportFailed",
-                "OutputWriteFailed", "Unexpected"
+                "OutputWriteFailed", "Unexpected", "SceneTimelineNotFound", "ScenePrefabInvalid",
+                "BindTrackNotFound", "BindTargetNotFound", "BindTargetDuplicated",
+                "BindTargetMissingAnimator", "SceneWriteFailed", "SceneBuildCanceled", "BindTrackDuplicated"
             };
 
-            CollectionAssert.AreEquivalent(expected, System.Enum.GetNames(typeof(BuildErrorCode)));
+            CollectionAssert.AreEqual(expected, System.Enum.GetNames(typeof(BuildErrorCode)));
+            for (var index = 0; index < 10; index++)
+                Assert.That((int)System.Enum.Parse(typeof(BuildErrorCode), expected[index]), Is.EqualTo(index));
         }
 
         [Test]
