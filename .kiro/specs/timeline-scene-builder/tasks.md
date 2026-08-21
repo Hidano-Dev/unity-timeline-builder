@@ -38,7 +38,7 @@
   - _Requirements: 1.1, 1.2, 1.4, 1.5, 1.6_
 
 - [ ] 3. Building 層: バインディング適用と Scene 生成
-- [ ] 3.1 (P) AnimationTrack バインディング適用コンポーネントを実装する
+- [x] 3.1 (P) AnimationTrack バインディング適用コンポーネントを実装する
   - Scene の全階層(非アクティブ GameObject を含み、本ツールが生成した Director 用オブジェクトのルートは除外)から GameObject 名を Ordinal 完全一致で解決する
   - Track 名に一致する AnimationTrack の不在・複数一致、GameObject の不在・同名重複、Animator コンポーネント欠落を、行番号・対象名付きエラーとして全バインド行分収集する(最初の失敗で打ち切らない)
   - バインド指定のない Track のバインディング状態には一切触れない
