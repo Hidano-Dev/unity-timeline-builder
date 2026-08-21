@@ -69,6 +69,15 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             Assert.Throws<ArgumentException>(() => TrackBuilderRegistry.Register(new FakeBuilder(" ", "Test")));
         }
 
+        [TestCase("Scene")]
+        [TestCase(" sceneprefab ")]
+        [TestCase("SCENEBIND")]
+        public void RegisterRejectsReservedSceneRowTypeKeysCaseInsensitively(string key)
+        {
+            Assert.Throws<ArgumentException>(() => TrackBuilderRegistry.Register(new FakeBuilder(key, "Test")));
+            Assert.That(TrackBuilderRegistry.IsKnownTrackType(key), Is.False);
+        }
+
         [Test]
         public void TryGetReturnsFalseForMissingOrEmptyKeys()
         {

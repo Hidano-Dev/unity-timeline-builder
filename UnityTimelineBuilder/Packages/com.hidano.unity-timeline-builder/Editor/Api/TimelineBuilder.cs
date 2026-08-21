@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Timeline;
 
 namespace Hidano.UnityTimelineBuilder.Editor
 {
@@ -107,6 +108,18 @@ namespace Hidano.UnityTimelineBuilder.Editor
             if (errors.Count > 0)
                 return Failure(errors);
 
+            SceneBuildValidationResult sceneValidation = null;
+            if (parsed.ScenePlan != null)
+            {
+                var validator = new SceneBuildValidator();
+                if (!validator.TryValidate(parsed.ScenePlan, parsed.Rows, timelinePath, prefabPath,
+                    request.OutputDirectory, out sceneValidation, out var sceneErrors))
+                {
+                    errors.AddRange(sceneErrors);
+                    return Failure(errors);
+                }
+            }
+
             try
             {
                 EnsureOutputDirectory(request.OutputDirectory);
@@ -114,7 +127,41 @@ namespace Hidano.UnityTimelineBuilder.Editor
                 new PrefabFactory().Create(timeline, prefabPath, assetName);
                 Debug.Log("[UnityTimelineBuilder] TimelineAsset: " + timelinePath);
                 Debug.Log("[UnityTimelineBuilder] Prefab: " + prefabPath);
-                return new BuildResult(true, timelinePath, prefabPath, Array.Empty<BuildError>());
+                AssetDatabase.SaveAssets();
+                AssetDatabase.ImportAsset(timelinePath, ImportAssetOptions.ForceSynchronousImport);
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                var persistedTimeline = AssetDatabase.LoadAssetAtPath<TimelineAsset>(timelinePath);
+
+                if (parsed.ScenePlan == null)
+                    return new BuildResult(true, timelinePath, prefabPath, Array.Empty<BuildError>());
+
+                var sceneTimeline = string.IsNullOrWhiteSpace(parsed.ScenePlan.Definition.TimelineAssetPath)
+                    ? persistedTimeline
+                    : sceneValidation.Timeline;
+                if (sceneTimeline == null)
+                {
+                    return Failure(new BuildError(BuildErrorCode.SceneTimelineNotFound,
+                        parsed.ScenePlan.Definition.LineNumber, timelinePath,
+                        "Generated TimelineAsset was not found after creation."), timelinePath, prefabPath);
+                }
+
+                var scenePath = CombineAssetPath(request.OutputDirectory,
+                    parsed.ScenePlan.Definition.SceneName + ".unity");
+                var sceneContext = new SceneBuildContext(parsed.ScenePlan, sceneTimeline,
+                    sceneValidation.PrefabAssets, scenePath, assetName,
+                    string.IsNullOrWhiteSpace(parsed.ScenePlan.Definition.TimelineAssetPath)
+                        ? timelinePath
+                        : parsed.ScenePlan.Definition.TimelineAssetPath);
+                if (!new SceneFactory().TryCreate(sceneContext, out var createdScenePath,
+                    out var sceneErrors))
+                {
+                    Debug.LogError("[UnityTimelineBuilder] Scene build failed; TimelineAsset and Prefab were created, Scene was not.");
+                    return Failure(sceneErrors, timelinePath, prefabPath);
+                }
+
+                Debug.Log("[UnityTimelineBuilder] Scene: " + createdScenePath);
+                return new BuildResult(true, timelinePath, prefabPath, createdScenePath,
+                    Array.Empty<BuildError>());
             }
             catch (Exception exception)
             {
@@ -196,12 +243,18 @@ namespace Hidano.UnityTimelineBuilder.Editor
 
         private static BuildResult Failure(BuildError error) => Failure(new[] { error });
 
+        private static BuildResult Failure(BuildError error, string timelinePath, string prefabPath)
+            => Failure(new[] { error }, timelinePath, prefabPath);
+
         private static BuildResult Failure(IEnumerable<BuildError> errors)
+            => Failure(errors, null, null);
+
+        private static BuildResult Failure(IEnumerable<BuildError> errors, string timelinePath, string prefabPath)
         {
             var list = errors.Where(error => error != null).ToList();
             foreach (var error in list)
                 Debug.LogError("[UnityTimelineBuilder] " + error.Code + ": " + error.Message);
-            return new BuildResult(false, null, null, list);
+            return new BuildResult(false, timelinePath, prefabPath, null, list);
         }
 
         private static BuildError Unexpected(string sourcePath, Exception exception, int? lineNumber = null,

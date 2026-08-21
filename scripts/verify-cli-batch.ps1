@@ -68,7 +68,10 @@ try {
     }
 
     New-Item -ItemType Directory -Force -Path $OutputPath, $LogRoot | Out-Null
-    Set-Content -LiteralPath $InputPath -Encoding utf8 -Value 'trackType,trackName,clipName,startTime,clipIn,duration,resourcePath'
+    Set-Content -LiteralPath $InputPath -Encoding utf8 -Value @(
+        'trackType,trackName,clipName,startTime,clipIn,duration,resourcePath'
+        'Scene,BatchAcceptanceScene,,,,,'
+    )
 
     Invoke-UnityCase -Name 'success' -ExpectedExitCode 0 -Arguments @(
         '-sheetPath', $InputPath,
@@ -76,7 +79,8 @@ try {
         '-assetName', 'batch-acceptance'
     ) -RequiredLogPatterns @(
         '\[UnityTimelineBuilder\].*TimelineAsset: Assets/UnityTimelineBuilder/BatchAcceptanceTemp/batch-acceptance\.playable',
-        '\[UnityTimelineBuilder\].*Prefab: Assets/UnityTimelineBuilder/BatchAcceptanceTemp/batch-acceptance\.prefab'
+        '\[UnityTimelineBuilder\].*Prefab: Assets/UnityTimelineBuilder/BatchAcceptanceTemp/batch-acceptance\.prefab',
+        '\[UnityTimelineBuilder\].*Scene: Assets/UnityTimelineBuilder/BatchAcceptanceTemp/BatchAcceptanceScene\.unity'
     )
 
     Invoke-UnityCase -Name 'build-failure' -ExpectedExitCode 1 -Arguments @(
@@ -95,8 +99,11 @@ try {
 
     $playable = Join-Path $OutputPath 'batch-acceptance.playable'
     $prefab = Join-Path $OutputPath 'batch-acceptance.prefab'
-    if (-not (Test-Path -LiteralPath $playable) -or -not (Test-Path -LiteralPath $prefab)) {
-        throw 'The successful batch run did not create both expected assets.'
+    $scene = Join-Path $OutputPath 'BatchAcceptanceScene.unity'
+    if (-not (Test-Path -LiteralPath $playable) -or
+        -not (Test-Path -LiteralPath $prefab) -or
+        -not (Test-Path -LiteralPath $scene)) {
+        throw 'The successful batch run did not create the expected TimelineAsset, Prefab, and Scene.'
     }
     if ($Results.Count -ne 3) {
         throw 'Not all CLI acceptance cases were executed.'

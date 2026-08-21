@@ -48,6 +48,8 @@ namespace Hidano.UnityTimelineBuilder.Editor
 
                 Debug.Log("[UnityTimelineBuilder] TimelineAsset: " + result.TimelineAssetPath);
                 Debug.Log("[UnityTimelineBuilder] Prefab: " + result.PrefabPath);
+                if (!string.IsNullOrWhiteSpace(result.ScenePath))
+                    Debug.Log("[UnityTimelineBuilder] Scene: " + result.ScenePath);
                 return SuccessExitCode;
             }
             catch (ArgumentException exception)

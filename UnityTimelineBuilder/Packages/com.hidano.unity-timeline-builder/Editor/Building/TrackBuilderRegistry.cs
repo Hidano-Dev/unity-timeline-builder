@@ -7,6 +7,13 @@ namespace Hidano.UnityTimelineBuilder.Editor
     {
         private static readonly Dictionary<string, ITrackBuilder> Builders =
             new Dictionary<string, ITrackBuilder>(StringComparer.OrdinalIgnoreCase);
+        private static readonly HashSet<string> ReservedTrackTypeKeys =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "Scene",
+                "ScenePrefab",
+                "SceneBind"
+            };
 
         static TrackBuilderRegistry()
         {
@@ -22,7 +29,11 @@ namespace Hidano.UnityTimelineBuilder.Editor
             if (string.IsNullOrWhiteSpace(builder.ResourceKind))
                 throw new ArgumentException("Track builder resource kind is required.", nameof(builder));
 
-            Builders[builder.TrackTypeKey.Trim()] = builder;
+            var normalizedKey = builder.TrackTypeKey.Trim();
+            if (ReservedTrackTypeKeys.Contains(normalizedKey))
+                throw new ArgumentException("Track builder type key is reserved for Scene rows.", nameof(builder));
+
+            Builders[normalizedKey] = builder;
         }
 
         public static bool TryGet(string trackTypeKey, out ITrackBuilder builder)

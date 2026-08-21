@@ -75,3 +75,6 @@ HANDOVER.md
 # Claude Code ローカル設定・ランタイム（マシン固有、追跡しない）
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+
+# uloop ランタイム出力（テスト結果 XML 等、追跡しない。設定ファイルは追跡対象のまま）
+**/.uloop/outputs/

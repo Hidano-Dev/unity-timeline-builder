@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using NUnit.Framework;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Playables;
 using UnityEngine.Timeline;
@@ -16,6 +17,8 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         private const string AnimationDirectory = "Assets/Animations";
         private const string AudioPath = AudioDirectory + "/intro.wav";
         private const string AnimationPath = AnimationDirectory + "/character.fbx";
+        private const string PrefabDirectory = "Assets/Prefabs";
+        private const string ScenePrefabPath = PrefabDirectory + "/Character.prefab";
         private const string OutputDirectory = "Assets/UnityTimelineBuilder/Tests/TemplateE2EOutput";
         private const string TimelinePath = OutputDirectory + "/BundledTemplate.playable";
         private const string PrefabPath = OutputDirectory + "/BundledTemplate.prefab";
@@ -25,9 +28,21 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         [SetUp]
         public void SetUp()
         {
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             audioDirectoryExisted = AssetDatabase.IsValidFolder(AudioDirectory);
             EnsureFolder(AudioDirectory);
+            EnsureFolder(PrefabDirectory);
             EnsureFolder(OutputDirectory);
+
+            var characterRoot = new GameObject("Character");
+            var animatorObject = new GameObject("CharacterRoot");
+            animatorObject.transform.SetParent(characterRoot.transform);
+            animatorObject.AddComponent<Animator>();
+            PrefabUtility.SaveAsPrefabAsset(characterRoot, ScenePrefabPath);
+            UnityEngine.Object.DestroyImmediate(characterRoot);
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
 
             File.WriteAllBytes(ProjectPath(AudioPath), CreateSilentWave(48000));
             AssetDatabase.ImportAsset(AudioPath, ImportAssetOptions.ForceSynchronousImport);
@@ -43,10 +58,14 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         [TearDown]
         public void TearDown()
         {
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             AssetDatabase.DeleteAsset(PrefabPath);
             AssetDatabase.DeleteAsset(TimelinePath);
+            AssetDatabase.DeleteAsset(ScenePrefabPath);
             AssetDatabase.DeleteAsset(AudioPath);
             AssetDatabase.DeleteAsset(OutputDirectory);
+            if (AssetDatabase.IsValidFolder(PrefabDirectory))
+                AssetDatabase.DeleteAsset(PrefabDirectory);
             if (!audioDirectoryExisted)
                 AssetDatabase.DeleteAsset(AudioDirectory);
             ResourceResolverRegistry.ResetForTest();

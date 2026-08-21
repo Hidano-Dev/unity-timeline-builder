@@ -16,6 +16,34 @@
 
 `clipName` と `duration` は列自体を省略することもできます（ヘッダー行がある場合）。ヘッダー行を省略する場合は既定の 7 列順で解釈されるため、空欄セルとして残してください。
 
+## Scene 行の列仕様
+
+`trackType` が `Scene`、`ScenePrefab`、`SceneBind` の行は、Timeline のクリップ行とは異なる Scene 構築情報として解釈されます。ヘッダー行を省略する場合も、次の固定 7 列順を使用してください。各行の未使用列は空欄にします。
+
+| 行種別 (`trackType`) | `trackName` | `clipName` | `startTime` / `clipIn` / `duration` | `resourcePath` |
+|---|---|---|---|---|
+| `Scene` | Scene 名。生成する `.unity` ファイル名に使用します。 | 未使用 | 未使用 | 割り当てる TimelineAsset。空欄なら同一ビルドで生成した TimelineAsset、`Assets/` で始まる場合は既存 TimelineAsset のパスです。 |
+| `ScenePrefab` | 未使用 | 未使用 | 未使用 | Scene に配置する Prefab のアセットパス。`Assets/` 配下を指定します。 |
+| `SceneBind` | バインド先 AnimationTrack の Track 名。クリップ行の `trackName` と一致させます。 | 未使用 | 未使用 | バインド対象の GameObject 名。Scene 内で一意である必要があります。 |
+
+| 行種別 | データ型 | 必須/任意 | 記入例 |
+|---|---|---|---|
+| `Scene` の `trackName` | string（ファイル名として有効） | 必須 | `SampleScene` |
+| `Scene` の `resourcePath` | string（空欄または `Assets/` パス） | 任意 | `Assets/Timelines/Existing.playable` |
+| `ScenePrefab` の `resourcePath` | string（`Assets/` 配下の Prefab パス） | 必須 | `Assets/Prefabs/Character.prefab` |
+| `SceneBind` の `trackName` | string（Ordinal 完全一致） | 必須 | `Character` |
+| `SceneBind` の `resourcePath` | string（GameObject 名） | 必須 | `CharacterRoot` |
+
+1シートにつき `Scene` 行は1行まで指定できます。`ScenePrefab` または `SceneBind` 行を使用する場合は `Scene` 行も必要です。Prefab は行の出現順にすべて配置されます。
+
+### Scene の参照・名前解決規約
+
+- `Scene` の `resourcePath` が空欄の場合、同一ビルドで生成した TimelineAsset を PlayableDirector に割り当てます。`Assets/` で始まる場合は既存 TimelineAsset を参照します。
+- `ScenePrefab` の `resourcePath` は `Assets/` 配下の Prefab アセットパスでなければなりません。
+- `SceneBind` の GameObject 名は、非アクティブな GameObject も含めて Scene 全体から Ordinal（大文字小文字を区別する）完全一致で探索します。
+- 同名の GameObject が複数ある場合、対象を一意に決定できないためエラーになります。対象 GameObject には Animator コンポーネントが必要です。
+- `SceneBind` は Track 名で AnimationTrack を指定します。バインド指定のない Track は未設定のまま保持されます。
+
 ## `resourcePath` の規約
 
 `resourcePath` は `trackType` に対応するリソースを指定します。
@@ -33,6 +61,9 @@
 trackType,trackName,clipName,startTime,clipIn,duration,resourcePath
 Audio,BGM,intro,0,0,3.2,Assets/Audio/intro.wav
 Animation,Character,intro,0.5,0,2.5,Assets/Animations/character.fbx
+Scene,SampleScene,,,,,
+ScenePrefab,,,,,,Assets/Prefabs/Character.prefab
+SceneBind,Character,,,,,CharacterRoot
 ```
 
 数値は秒単位の小数で記入します。CSV の値にカンマや改行を含める場合は、RFC 4180 に従って値全体をダブルクォートで囲み、値中のダブルクォートは `""` としてエスケープしてください。
