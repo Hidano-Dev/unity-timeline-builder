@@ -64,5 +64,50 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             Assert.That(request.AssetName, Is.EqualTo("Timeline"));
             Assert.That(request.ImportDirectory, Is.EqualTo("Assets/Imported"));
         }
+
+        [Test]
+        public void SceneRowsRetainTypedInputAsImmutableProperties()
+        {
+            var definition = new SceneDefinitionRow(2, "Shot01", "Assets/Timelines/Shot01.playable");
+            var prefab = new ScenePrefabRow(3, "Assets/Prefabs/Character.prefab");
+            var binding = new SceneBindRow(4, "CharacterTrack", "CharacterRoot");
+
+            Assert.That(definition.LineNumber, Is.EqualTo(2));
+            Assert.That(definition.SceneName, Is.EqualTo("Shot01"));
+            Assert.That(definition.TimelineAssetPath, Is.EqualTo("Assets/Timelines/Shot01.playable"));
+            Assert.That(prefab.LineNumber, Is.EqualTo(3));
+            Assert.That(prefab.PrefabAssetPath, Is.EqualTo("Assets/Prefabs/Character.prefab"));
+            Assert.That(binding.LineNumber, Is.EqualTo(4));
+            Assert.That(binding.TrackName, Is.EqualTo("CharacterTrack"));
+            Assert.That(binding.GameObjectName, Is.EqualTo("CharacterRoot"));
+        }
+
+        [Test]
+        public void SceneBuildPlanCopiesRowsAndPreservesTheirOrder()
+        {
+            var definition = new SceneDefinitionRow(2, "Shot01", null);
+            var prefabs = new List<ScenePrefabRow>
+            {
+                new ScenePrefabRow(5, "Assets/Prefabs/A.prefab"),
+                new ScenePrefabRow(7, "Assets/Prefabs/B.prefab")
+            };
+            var bindings = new List<SceneBindRow>
+            {
+                new SceneBindRow(8, "TrackA", "ObjectA"),
+                new SceneBindRow(9, "TrackB", "ObjectB")
+            };
+
+            var plan = new SceneBuildPlan(definition, prefabs, bindings);
+            prefabs.Clear();
+            bindings.Clear();
+
+            Assert.That(plan.Definition, Is.SameAs(definition));
+            Assert.That(plan.Prefabs, Has.Count.EqualTo(2));
+            Assert.That(plan.Prefabs[0].PrefabAssetPath, Is.EqualTo("Assets/Prefabs/A.prefab"));
+            Assert.That(plan.Prefabs[1].PrefabAssetPath, Is.EqualTo("Assets/Prefabs/B.prefab"));
+            Assert.That(plan.Bindings, Has.Count.EqualTo(2));
+            Assert.That(plan.Bindings[0].TrackName, Is.EqualTo("TrackA"));
+            Assert.That(plan.Bindings[1].TrackName, Is.EqualTo("TrackB"));
+        }
     }
 }

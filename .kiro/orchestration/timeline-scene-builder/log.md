@@ -45,3 +45,20 @@
   - Escalation: none
   - Retry: 1 回（GO 付帯指摘 2 件の設計反映のための merge 再実行）
 - Branch/PR: n/a
+
+## Phase 4: タスク分解 — 2026-08-21T22:22:38+09:00
+
+- Command: `/kiro:spec-tasks timeline-scene-builder -y`
+- Result: メジャータスク 8 件・サブタスク 13 件を生成。全 29 受入基準をマッピング。並列マーカー (P) と クロス境界依存 (_Depends:_) を宣言。8.4（CLI 実プロセス検証）のみ延期可能なオプションタスク。
+- Reviewer: セルフチェック — 全要件 ID（1.1–1.6, 2.1–2.5, 3.1–3.4, 4.1–4.7, 5.1–5.4, 6.1–6.4, 7.1–7.3）のマッピングを Grep で機械確認。欠落なし・空コンテナなし。
+- Gate C: AUTO-APPROVED
+  - Rationale: 全要件 ID がタスクにマッピング済み（機械確認）。全タスクが実行可能な粒度。データ削除・デプロイ・外部公開等の破壊的タスクなし。design.md の Boundary 外に触れるタスクなし。spec.json を直接更新（approvals.tasks.approved: true / ready_for_implementation: true）。
+  - Escalation: none
+  - Retry: none
+- Branch/PR: n/a
+
+## Phase 5 前処理: ブランチ作成 — 2026-08-21T22:25:00+09:00
+
+- Command: `git switch -c feature/timeline-scene-builder` / `git branch -f main origin/main`
+- Result: スペック文書の自動コミット 5 件（7f52049..cd26258、main 上・未 push）を feature ブランチへ移し、ローカル main を origin/main (aac2d51) に揃えた。コミットは feature ブランチに保持。Gate A〜C エスカレーションなしのため実装開始の特例により spec-run を自動開始。
+- Branch/PR: feature/timeline-scene-builder
