@@ -117,6 +117,33 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         }
 
         [Test]
+        public void BuildsSceneWhenActiveSceneHasRootObjects()
+        {
+            new GameObject("ExistingRoot");
+            var existingScenePath = FixtureDirectory + "/Existing.unity";
+            EditorSceneManager.SaveScene(
+                UnityEngine.SceneManagement.SceneManager.GetActiveScene(), existingScenePath);
+
+            var result = TimelineBuilder.Build(new BuildRequest
+            {
+                SheetPath = ProjectPath(TemplatePath),
+                OutputDirectory = OutputDirectory,
+                AssetName = "BundledTemplate",
+                ImportDirectory = FixtureDirectory + "/Imported"
+            });
+
+            Assert.That(result.Success, Is.True, FormatErrors(result));
+            Assert.That(result.ScenePath, Is.EqualTo(TemplateScenePath));
+            Assert.That(File.Exists(ProjectPath(TemplateScenePath)), Is.True);
+
+            var scene = EditorSceneManager.OpenScene(TemplateScenePath, OpenSceneMode.Single);
+            var directorObject = scene.GetRootGameObjects().Single(root => root.name == "BundledTemplate");
+            var director = directorObject.GetComponent<PlayableDirector>();
+            Assert.That(director.playableAsset, Is.Not.Null);
+            Assert.That(scene.GetRootGameObjects().Any(root => root.name == "ExistingRoot"), Is.False);
+        }
+
+        [Test]
         public void BuildsLegacyCsvWithoutSceneAndLeavesScenePathNull()
         {
             File.WriteAllText(ProjectPath(LegacySheetPath),
