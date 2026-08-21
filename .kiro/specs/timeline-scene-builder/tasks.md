@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. 基盤: Scene 構築情報モデルと結果契約の拡張
+- [x] 1. 基盤: Scene 構築情報モデルと結果契約の拡張
 - [x] 1.1 (P) Scene 構築情報の型付き不変モデルを定義する
   - Scene 定義・Prefab 配置・バインド指定の各行を行番号付きの不変モデルとして表現し、行出現順を保持する Scene 構築計画として集約できるようにする
   - Scene 定義では Timeline 参照の「空欄 = 同一ビルド生成の TimelineAsset」を既存アセット明示参照と区別できる形で保持する
@@ -16,7 +16,7 @@
   - _Requirements: 5.2, 5.4_
   - _Boundary: BuildResult, BuildErrorCode_
 
-- [ ] 2. パーサー拡張: Scene 行の認識と検証
+- [x] 2. パーサー拡張: Scene 行の認識と検証
 - [x] 2.1 Scene 行のルーティングとパースを実装する
   - 行種別キー(大文字小文字無視・trim 後比較)で Scene 系 3 行種を識別し、それ以外は既存のクリップ行パースへ委譲する。ヘッダー判定・列マッピング・固定 7 列フォールバックの既存ロジックは変更しない
   - Scene 系行を型付きモデルへ変換し、パース結果に Scene 構築計画として集約する(Scene 行なしの入力では計画は null で既存出力と完全一致)
@@ -37,7 +37,7 @@
   - 完了条件: 上記を網羅する EditMode 単体テストが全て成功する
   - _Requirements: 1.1, 1.2, 1.4, 1.5, 1.6_
 
-- [ ] 3. Building 層: バインディング適用と Scene 生成
+- [x] 3. Building 層: バインディング適用と Scene 生成
 - [x] 3.1 (P) AnimationTrack バインディング適用コンポーネントを実装する
   - Scene の全階層(非アクティブ GameObject を含み、本ツールが生成した Director 用オブジェクトのルートは除外)から GameObject 名を Ordinal 完全一致で解決する
   - Track 名に一致する AnimationTrack の不在・複数一致、GameObject の不在・同名重複、Animator コンポーネント欠落を、行番号・対象名付きエラーとして全バインド行分収集する(最初の失敗で打ち切らない)
@@ -62,7 +62,7 @@
   - _Requirements: 1.2_
   - _Boundary: TrackBuilderRegistry_
 
-- [ ] 5. API 統合: パイプラインへの Scene フェーズ組み込み
+- [x] 5. API 統合: パイプラインへの Scene フェーズ組み込み
 - [x] 5.1 Phase A の Scene 静的検証を実装する
   - Timeline 参照の解決: 空欄は同一ビルド生成の TimelineAsset、Assets/ 始まりは既存アセットとして解決し、不在・型不一致・それ以外の値はエラーとして収集する
   - Prefab 行を Assets/ 配下のアセットパスとして解決し、Assets/ 外・不在・型不一致は行番号・参照パス付きエラーとして収集する
@@ -93,7 +93,7 @@
   - _Requirements: 7.1, 7.2, 7.3_
   - _Boundary: Documentation~_
 
-- [ ] 8. 検証: 統合テストと E2E
+- [x] 8. 検証: 統合テストと E2E
 - [x] 8.1 (P) Scene 生成・保存・永続化の統合テストを追加する
   - Director GameObject の存在、playableAsset が生成 TimelineAsset を参照、Prefab インスタンス判定が真、複数 Prefab の全配置を検証する
   - 保存後に Scene を再オープンしてバインディングが保持され、バインド指定のない Track が未設定のままであることを検証する

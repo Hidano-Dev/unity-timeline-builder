@@ -62,3 +62,22 @@
 - Command: `git switch -c feature/timeline-scene-builder` / `git branch -f main origin/main`
 - Result: スペック文書の自動コミット 5 件（7f52049..cd26258、main 上・未 push）を feature ブランチへ移し、ローカル main を origin/main (aac2d51) に揃えた。コミットは feature ブランチに保持。Gate A〜C エスカレーションなしのため実装開始の特例により spec-run を自動開始。
 - Branch/PR: feature/timeline-scene-builder
+
+## Phase 5: 実装 + 検証 — 2026-08-22T00:20:00+09:00
+
+- Command: `/kiro:spec-run timeline-scene-builder`（codex exec 主体、claude -p フォールバックなし）
+- Result: 全 16 タスク OK（8.4 オプション含む）。実行中の補正 2 件: (1) 初期プロンプトの「UnityTestRunner」が実在コマンドでなく 2.1/2.2 が FAIL 報告 → テスト検証を `uloop compile` + `uloop run-tests --test-mode EditMode` に補正して以降全タスク成功（2.1 はテスト全通過を確認し OK に訂正、2.2 は再実行で修正）。(2) タスク 5.2 が前面実行 10 分上限で打ち切り → バックグラウンド実行（30 分枠）に切替えて成功。付随作業: `.uloop/outputs/`（テスト結果 XML）を .gitignore 追加・誤コミット分を untrack（chore コミット 3 件）。
+- Reviewer: `/kiro:validate-impl timeline-scene-builder` — **GO**。コンパイル成功、EditMode テスト 77/77 通過、リグレッションなし、全 AC トレース可。Warning: package.json バージョン / CHANGELOG / README 未更新（design.md 記載だがタスク起票漏れ）。Minor: SceneFactory の空 Scene 再利用（設計との軽微差分）、Phase A の重複エラー報告ノイズ、8.4 の実プロセス検証未実施（Editor 起動中のため）。
+- Gate D: AUTO-APPROVED
+  - Rationale: 全タスク OK かつ validate-impl が GO（重大指摘なし）。Warning/Minor は完了報告に残課題として転記。ポリシーに従い検証起点の自動修正は行わない。
+  - Escalation: none
+  - Retry: 2.2 再実行 1 回・5.2 再実行 1 回（いずれも環境要因の補正、各タスク最大 2 回の範囲内）
+- Branch/PR: feature/timeline-scene-builder
+
+### spec-run タスク結果
+
+| Task | Engine | Result |
+|------|--------|--------|
+| 1.1 / 1.2 / 2.1 / 2.2 / 2.3 / 3.1 / 3.2 / 4 / 5.1 / 5.2 / 6 / 7 / 8.1 / 8.2 / 8.3 / 8.4 | codex | すべて OK |
+
+claude -p フォールバック: 0/16 タスク（Codex 使用制限は未発生）
