@@ -94,7 +94,7 @@
   - _Boundary: Documentation~_
 
 - [ ] 8. 検証: 統合テストと E2E
-- [ ] 8.1 (P) Scene 生成・保存・永続化の統合テストを追加する
+- [x] 8.1 (P) Scene 生成・保存・永続化の統合テストを追加する
   - Director GameObject の存在、playableAsset が生成 TimelineAsset を参照、Prefab インスタンス判定が真、複数 Prefab の全配置を検証する
   - 保存後に Scene を再オープンしてバインディングが保持され、バインド指定のない Track が未設定のままであることを検証する
   - 同一出力先への 2 回実行で上書きログ出力と .unity の GUID 維持、バインド失敗時に .unity が保存されないことを検証する
