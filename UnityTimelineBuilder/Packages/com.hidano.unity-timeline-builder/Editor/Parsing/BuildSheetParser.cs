@@ -11,12 +11,15 @@ namespace Hidano.UnityTimelineBuilder.Editor
         public IReadOnlyList<ClipRow> Rows { get; }
         public IReadOnlyList<BuildError> Errors { get; }
         public string WarningMessage { get; }
+        public SceneBuildPlan ScenePlan { get; }
 
-        internal ParseOutcome(IReadOnlyList<ClipRow> rows, IReadOnlyList<BuildError> errors, string warningMessage)
+        internal ParseOutcome(IReadOnlyList<ClipRow> rows, IReadOnlyList<BuildError> errors, string warningMessage,
+            SceneBuildPlan scenePlan = null)
         {
             Rows = rows;
             Errors = errors;
             WarningMessage = warningMessage;
+            ScenePlan = scenePlan;
         }
     }
 
@@ -49,6 +52,9 @@ namespace Hidano.UnityTimelineBuilder.Editor
 
             var errors = new List<BuildError>();
             var parsedRows = new List<ClipRow>();
+            SceneDefinitionRow sceneDefinition = null;
+            var scenePrefabs = new List<ScenePrefabRow>();
+            var sceneBindings = new List<SceneBindRow>();
             var hasHeader = rawRows.Count > 0 && rawRows[0].Any(IsTrackTypeHeader);
             var columnIndexes = hasHeader ? MapHeader(rawRows[0], errors) : DefaultColumnIndexes();
             var warning = hasHeader ? null : "ヘッダー未検出のため既定列順で解釈します。";
@@ -63,10 +69,46 @@ namespace Hidano.UnityTimelineBuilder.Editor
             {
                 var lineNumber = rowIndex + 1;
                 var fields = rawRows[rowIndex] ?? Array.Empty<string>();
-                ParseRow(fields, lineNumber, columnIndexes, parsedRows, errors);
+                if (TryGetValue(fields, columnIndexes, "trackType", out var trackType) &&
+                    IsSceneRowType(trackType))
+                {
+                    ParseSceneRow(fields, lineNumber, columnIndexes, trackType,
+                        ref sceneDefinition, scenePrefabs, sceneBindings);
+                }
+                else
+                {
+                    ParseRow(fields, lineNumber, columnIndexes, parsedRows, errors);
+                }
             }
 
-            return new ParseOutcome(parsedRows.AsReadOnly(), errors.AsReadOnly(), warning);
+            var scenePlan = sceneDefinition == null
+                ? null
+                : new SceneBuildPlan(sceneDefinition, scenePrefabs.AsReadOnly(), sceneBindings.AsReadOnly());
+            return new ParseOutcome(parsedRows.AsReadOnly(), errors.AsReadOnly(), warning, scenePlan);
+        }
+
+        private static void ParseSceneRow(IReadOnlyList<string> fields, int lineNumber,
+            IReadOnlyDictionary<string, int> indexes, string trackType,
+            ref SceneDefinitionRow definition, List<ScenePrefabRow> prefabs,
+            List<SceneBindRow> bindings)
+        {
+            switch (trackType.Trim().ToLowerInvariant())
+            {
+                case "scene":
+                    definition = new SceneDefinitionRow(lineNumber,
+                        GetValue(fields, indexes, "trackName"),
+                        StripSurroundingQuotes(GetValue(fields, indexes, "resourcePath")));
+                    break;
+                case "sceneprefab":
+                    prefabs.Add(new ScenePrefabRow(lineNumber,
+                        StripSurroundingQuotes(GetValue(fields, indexes, "resourcePath"))));
+                    break;
+                case "scenebind":
+                    bindings.Add(new SceneBindRow(lineNumber,
+                        GetValue(fields, indexes, "trackName"),
+                        StripSurroundingQuotes(GetValue(fields, indexes, "resourcePath"))));
+                    break;
+            }
         }
 
         private Dictionary<string, int> MapHeader(IReadOnlyList<string> header, List<BuildError> errors)
@@ -169,6 +211,13 @@ namespace Hidano.UnityTimelineBuilder.Editor
 
         private static void AddRangeError(int lineNumber, string message, List<BuildError> errors) => errors.Add(new BuildError(BuildErrorCode.RowValidationError, lineNumber, null, message));
         private static bool IsTrackTypeHeader(string value) => string.Equals((value ?? string.Empty).Trim(), "trackType", StringComparison.OrdinalIgnoreCase);
+        private static bool IsSceneRowType(string value)
+        {
+            var normalized = (value ?? string.Empty).Trim();
+            return string.Equals(normalized, "Scene", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(normalized, "ScenePrefab", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(normalized, "SceneBind", StringComparison.OrdinalIgnoreCase);
+        }
         private static Dictionary<string, int> DefaultColumnIndexes() => ColumnOrder.Select((name, index) => new { name, index }).ToDictionary(item => item.name, item => item.index, StringComparer.OrdinalIgnoreCase);
     }
 }
