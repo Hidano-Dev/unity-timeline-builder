@@ -47,7 +47,7 @@
   - _Depends: 1.1_
   - _Boundary: TrackBindingApplier_
 
-- [ ] 3.2 Scene 生成・配置・保存コンポーネントを実装する
+- [x] 3.2 Scene 生成・配置・保存コンポーネントを実装する
   - 対話モードでは処理前に未保存 Scene の保存確認を行い(キャンセル時は何も変更せず中断)、batchmode では確認なしで空 Scene(EmptyScene / Single)を作成する
   - Scene 直下に Director 用 GameObject(名前 = TimelineAsset のアセット名)を配置して TimelineAsset を割り当て、Prefab を行出現順に Prefab インスタンスとして配置する(Transform・インスタンス名は既定値のまま)
   - バインディング適用でエラーが 1 件以上返された場合は保存せずに失敗を返し、全成功時のみ MarkSceneDirty → SaveScene を 1 回だけ実行する。既存 .unity がある場合は保存前に上書きログを出力し GUID を維持する
