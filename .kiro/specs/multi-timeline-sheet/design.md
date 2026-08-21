@@ -320,8 +320,8 @@ internal sealed class TimelineGroupPlan
 
 **Responsibilities & Constraints**
 - **レガシー写像規則（6.3）**: `TimelineAssetPath` / `PrefabPath` / `ScenePath` は `Outputs` の**先頭要素**（初出順の第 1 グループ）の値。`Outputs` が空のときは null。レガシー入力ではグループが常に 1 つのため、値・失敗時の部分設定（Timeline / Prefab 生成済みで Scene 失敗など）を含め現行と完全一致する
-- **fail-fast 時の内容（4.3）**: `Outputs` には生成が完了した成果物パスのみを設定する（未生成は null、未着手グループはエントリなし）。失敗原因の `BuildError` に `TimelineName` を設定し、どのグループで失敗しどこまで成功したかを判別可能にする
-- 既存 public コンストラクタ 2 種は維持し、引数から単一 `BuildOutput` を合成する（パスが全て null の場合は `Outputs` を空にする）
+- **fail-fast 時の内容（4.3）**: `Outputs` には生成が完了した成果物パスのみを設定する（未生成は null、未着手グループはエントリなし）。`BuildOutput.HasScenePlan` により `ScenePath == null` の「Scene 行なし」と「未生成」を `Outputs` 単体で判別できる。失敗原因の `BuildError` に `TimelineName` を設定し、どのグループで失敗しどこまで成功したかを判別可能にする
+- **レガシーコンストラクタの `BuildOutput` 合成規則（6.3）**: 既存 public コンストラクタ 2 種は維持し、引数から単一 `BuildOutput` を合成する。`ResolvedAssetName` と `TimelineName` は `Path.GetFileNameWithoutExtension(timelineAssetPath)` から導出（`timelineAssetPath` が null なら両者 null）、`HasScenePlan` は `scenePath != null`。パスが全て null の場合は `Outputs` を空にする
 - `BuildErrorCode` は末尾へ `AssetNameConflict` を追加（enum の加法的拡張。既存値の序数は不変）
 
 **Contracts**: State [x]
@@ -337,6 +337,8 @@ public sealed class BuildOutput
     public string TimelineAssetPath { get; }  // 未生成時 null
     public string PrefabPath { get; }         // 未生成時 null
     public string ScenePath { get; }          // Scene 行なし・未生成時 null
+    /// <summary>このグループに Scene 計画があるか。ScenePath == null が「Scene 行なし」（false）か「fail-fast により未生成」（true）かを Outputs 単体で判別可能にする。</summary>
+    public bool HasScenePlan { get; }
 }
 
 public sealed class BuildResult
@@ -470,7 +472,7 @@ internal sealed class OutputPathPlanner
 
 **Responsibilities & Constraints**
 - 成功時は `result.Outputs` を走査し、成果物ごとに既存書式でログ出力（レガシー入力では現行と同一の 2〜3 行になる）（5.2）
-- 失敗時の `FormatError` に `TimelineName` を追記する（例: `RowValidationError (行 5) [Title]: ...`）。`TimelineName` が null の場合は現行書式のまま（5.3, 6.3）
+- 失敗時の `FormatError` に `TimelineName` を追記する。既存の `[SourcePath]` 表記（`[...]`）と区別できるよう `[timeline: ...]` 書式とする（例: `RowValidationError (行 5) [timeline: Title]: ...`）。`TimelineName` が null の場合は現行書式のまま（5.3, 6.3）
 - 引数（`-sheetPath` / `-outputDir` / `-assetName` / `-importDir`）と exit code（0/1/2）は不変。`-assetName` と timeline カラムの競合は API 層の `AssetNameConflict` エラーとして exit code 1 で報告される（5.4, 5.5）
 
 **Contracts**: Service [x]（公開シグネチャ不変のため定義は省略）
