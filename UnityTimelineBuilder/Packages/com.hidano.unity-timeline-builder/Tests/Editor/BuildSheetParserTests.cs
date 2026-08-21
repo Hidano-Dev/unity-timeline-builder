@@ -152,5 +152,42 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             Assert.That(outcome.Rows, Has.Count.EqualTo(1));
             Assert.That(outcome.Rows[0].ResourcePath, Is.EqualTo("C:\\Media\\my intro.wav"));
         }
+
+        [Test]
+        public void CollectsSceneValidationErrorsWithLineNumbers()
+        {
+            var rows = new List<IReadOnlyList<string>>
+            {
+                new[] { "trackType", "trackName", "clipName", "startTime", "clipIn", "duration", "resourcePath" },
+                new[] { "ScenePrefab", "", "", "", "", "", "" },
+                new[] { "SceneBind", "Walk", "", "", "", "", "Hero" },
+                new[] { "Scene", "Bad/Scene", "", "", "", "", "" },
+                new[] { "Scene", "Another", "", "", "", "", "" },
+                new[] { "SceneBind", "Walk", "", "", "", "", "Hero2" }
+            };
+
+            var outcome = CreateParser().Parse(rows);
+
+            Assert.That(outcome.Errors, Has.Count.EqualTo(8));
+            Assert.That(outcome.Errors.Select(error => error.LineNumber), Is.EquivalentTo(new int?[] { 2, 2, 3, 3, 3, 4, 5, 6 }));
+            Assert.That(outcome.Errors.All(error => error.Code == BuildErrorCode.RowValidationError), Is.True);
+        }
+
+        [Test]
+        public void ReportsMissingSceneBindValuesAndAllowsUnusedColumns()
+        {
+            var rows = new List<IReadOnlyList<string>>
+            {
+                new[] { "trackType", "trackName", "clipName", "startTime", "clipIn", "duration", "resourcePath" },
+                new[] { "Scene", "Sample", "ignored", "ignored", "ignored", "ignored", "" },
+                new[] { "SceneBind", "", "ignored", "ignored", "ignored", "ignored", "" }
+            };
+
+            var outcome = CreateParser().Parse(rows);
+
+            Assert.That(outcome.Errors, Has.Count.EqualTo(2));
+            Assert.That(outcome.Errors.Select(error => error.LineNumber), Is.EquivalentTo(new int?[] { 3, 3 }));
+            Assert.That(outcome.ScenePlan.Definition.SceneName, Is.EqualTo("Sample"));
+        }
     }
 }

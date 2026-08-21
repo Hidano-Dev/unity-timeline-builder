@@ -73,13 +73,15 @@ namespace Hidano.UnityTimelineBuilder.Editor
                     IsSceneRowType(trackType))
                 {
                     ParseSceneRow(fields, lineNumber, columnIndexes, trackType,
-                        ref sceneDefinition, scenePrefabs, sceneBindings);
+                        ref sceneDefinition, scenePrefabs, sceneBindings, errors);
                 }
                 else
                 {
                     ParseRow(fields, lineNumber, columnIndexes, parsedRows, errors);
                 }
             }
+
+            ValidateSceneRows(sceneDefinition, scenePrefabs, sceneBindings, errors);
 
             var scenePlan = sceneDefinition == null
                 ? null
@@ -90,24 +92,61 @@ namespace Hidano.UnityTimelineBuilder.Editor
         private static void ParseSceneRow(IReadOnlyList<string> fields, int lineNumber,
             IReadOnlyDictionary<string, int> indexes, string trackType,
             ref SceneDefinitionRow definition, List<ScenePrefabRow> prefabs,
-            List<SceneBindRow> bindings)
+            List<SceneBindRow> bindings, List<BuildError> errors)
         {
             switch (trackType.Trim().ToLowerInvariant())
             {
                 case "scene":
-                    definition = new SceneDefinitionRow(lineNumber,
-                        GetValue(fields, indexes, "trackName"),
+                    var sceneName = GetValue(fields, indexes, "trackName");
+                    if (!TryGetValue(fields, indexes, "trackName", out _))
+                        AddRangeError(lineNumber, "Scene 行の必須値がありません: trackName (Scene 名)", errors);
+                    else if (!IsValidSceneName(sceneName))
+                        AddRangeError(lineNumber, "Scene 名がファイル名として不正です: " + sceneName, errors);
+
+                    if (definition != null)
+                    {
+                        AddRangeError(lineNumber, "Scene 行は 1 シートに 1 行のみ指定できます。", errors);
+                        break;
+                    }
+
+                    definition = new SceneDefinitionRow(lineNumber, sceneName,
                         StripSurroundingQuotes(GetValue(fields, indexes, "resourcePath")));
                     break;
                 case "sceneprefab":
+                    if (!TryGetValue(fields, indexes, "resourcePath", out _))
+                        AddRangeError(lineNumber, "ScenePrefab 行の必須値がありません: resourcePath (Prefab)", errors);
                     prefabs.Add(new ScenePrefabRow(lineNumber,
                         StripSurroundingQuotes(GetValue(fields, indexes, "resourcePath"))));
                     break;
                 case "scenebind":
+                    var bindTrackName = GetValue(fields, indexes, "trackName");
+                    var gameObjectName = StripSurroundingQuotes(GetValue(fields, indexes, "resourcePath"));
+                    if (!TryGetValue(fields, indexes, "trackName", out _))
+                        AddRangeError(lineNumber, "SceneBind 行の必須値がありません: trackName (Track 名)", errors);
+                    if (!TryGetValue(fields, indexes, "resourcePath", out _))
+                        AddRangeError(lineNumber, "SceneBind 行の必須値がありません: resourcePath (GameObject 名)", errors);
                     bindings.Add(new SceneBindRow(lineNumber,
-                        GetValue(fields, indexes, "trackName"),
-                        StripSurroundingQuotes(GetValue(fields, indexes, "resourcePath"))));
+                        bindTrackName, gameObjectName));
                     break;
+            }
+        }
+
+        private static void ValidateSceneRows(SceneDefinitionRow definition,
+            List<ScenePrefabRow> prefabs, List<SceneBindRow> bindings, List<BuildError> errors)
+        {
+            if (definition == null)
+            {
+                foreach (var prefab in prefabs)
+                    AddRangeError(prefab.LineNumber, "ScenePrefab 行には Scene 行が必要です。", errors);
+                foreach (var binding in bindings)
+                    AddRangeError(binding.LineNumber, "SceneBind 行には Scene 行が必要です。", errors);
+            }
+
+            var trackNames = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var binding in bindings)
+            {
+                if (!string.IsNullOrEmpty(binding.TrackName) && !trackNames.Add(binding.TrackName))
+                    AddRangeError(binding.LineNumber, "同一 Track 名への SceneBind 指定が重複しています: " + binding.TrackName, errors);
             }
         }
 
@@ -210,6 +249,18 @@ namespace Hidano.UnityTimelineBuilder.Editor
         }
 
         private static void AddRangeError(int lineNumber, string message, List<BuildError> errors) => errors.Add(new BuildError(BuildErrorCode.RowValidationError, lineNumber, null, message));
+        private static bool IsValidSceneName(string value)
+        {
+            if (string.IsNullOrEmpty(value) || value == "." || value == ".." || value[value.Length - 1] == '.' || value[value.Length - 1] == ' ')
+                return false;
+
+            foreach (var character in value)
+            {
+                if (character < 32 || "<>:\"/\\|?*".IndexOf(character) >= 0)
+                    return false;
+            }
+            return true;
+        }
         private static bool IsTrackTypeHeader(string value) => string.Equals((value ?? string.Empty).Trim(), "trackType", StringComparison.OrdinalIgnoreCase);
         private static bool IsSceneRowType(string value)
         {
