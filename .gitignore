@@ -76,5 +76,5 @@ HANDOVER.md
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
 
-# uloop ランタイム出力（テスト結果 XML 等、追跡しない）
-.uloop/
+# uloop ランタイム出力（テスト結果 XML 等、追跡しない。設定ファイルは追跡対象のまま）
+.uloop/outputs/
