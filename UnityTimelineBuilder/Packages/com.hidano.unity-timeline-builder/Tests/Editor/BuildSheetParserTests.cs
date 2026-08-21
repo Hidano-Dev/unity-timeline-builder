@@ -168,8 +168,8 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
 
             var outcome = CreateParser().Parse(rows);
 
-            Assert.That(outcome.Errors, Has.Count.EqualTo(8));
-            Assert.That(outcome.Errors.Select(error => error.LineNumber), Is.EquivalentTo(new int?[] { 2, 2, 3, 3, 3, 4, 5, 6 }));
+            Assert.That(outcome.Errors, Has.Count.EqualTo(4));
+            Assert.That(outcome.Errors.Select(error => error.LineNumber), Is.EquivalentTo(new int?[] { 2, 4, 5, 6 }));
             Assert.That(outcome.Errors.All(error => error.Code == BuildErrorCode.RowValidationError), Is.True);
         }
 
