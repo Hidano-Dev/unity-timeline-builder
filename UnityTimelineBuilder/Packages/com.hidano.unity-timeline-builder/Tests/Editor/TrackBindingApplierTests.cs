@@ -90,6 +90,65 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         }
 
         [Test]
+        public void ReportsDuplicateBindingTargetsIncludingInactiveObjects()
+        {
+            var activeTarget = new GameObject("Character");
+            activeTarget.AddComponent<Animator>();
+            var inactiveTarget = new GameObject("Character");
+            inactiveTarget.SetActive(false);
+            inactiveTarget.AddComponent<Animator>();
+            timeline.CreateTrack<AnimationTrack>(null, "Move");
+
+            var errors = new TrackBindingApplier().Apply(director, timeline, scene, directorObject,
+                new[] { new SceneBindRow(14, "Move", "Character") });
+
+            Assert.That(errors, Has.Count.EqualTo(1));
+            Assert.That(errors[0].Code, Is.EqualTo(BuildErrorCode.BindTargetDuplicated));
+            Assert.That(errors[0].LineNumber, Is.EqualTo(14));
+            Assert.That(director.GetGenericBinding(timeline.GetOutputTracks().Single()), Is.Null);
+        }
+
+        [Test]
+        public void CollectsEveryBindingErrorInOneApply()
+        {
+            var noAnimator = new GameObject("NoAnimator");
+            var duplicateA = new GameObject("Duplicate");
+            duplicateA.AddComponent<Animator>();
+            var duplicateB = new GameObject("Duplicate");
+            duplicateB.SetActive(false);
+            duplicateB.AddComponent<Animator>();
+            var validTarget = new GameObject("Valid");
+            validTarget.AddComponent<Animator>();
+
+            timeline.CreateTrack<AnimationTrack>(null, "ValidTrack");
+            timeline.CreateTrack<AnimationTrack>(null, "UniqueTrack");
+            timeline.CreateTrack<AnimationTrack>(null, "NoAnimatorTrack");
+            var duplicateTrack = timeline.CreateTrack<AnimationTrack>(null, "OtherTrack");
+            duplicateTrack.name = "ValidTrack";
+
+            var errors = new TrackBindingApplier().Apply(director, timeline, scene, directorObject,
+                new[]
+                {
+                    new SceneBindRow(20, "MissingTrack", "Valid"),
+                    new SceneBindRow(21, "ValidTrack", "Valid"),
+                    new SceneBindRow(22, "UniqueTrack", "MissingObject"),
+                    new SceneBindRow(23, "UniqueTrack", "Duplicate"),
+                    new SceneBindRow(24, "NoAnimatorTrack", "NoAnimator")
+                });
+
+            Assert.That(errors.Select(error => error.Code), Is.EquivalentTo(new[]
+            {
+                BuildErrorCode.BindTrackNotFound,
+                BuildErrorCode.BindTrackDuplicated,
+                BuildErrorCode.BindTargetNotFound,
+                BuildErrorCode.BindTargetDuplicated,
+                BuildErrorCode.BindTargetMissingAnimator
+            }));
+            Assert.That(errors.Select(error => error.LineNumber), Is.EquivalentTo(
+                new int?[] { 20, 21, 22, 23, 24 }));
+        }
+
+        [Test]
         public void ReportsDuplicatedAnimationTracks()
         {
             var target = new GameObject("Character");

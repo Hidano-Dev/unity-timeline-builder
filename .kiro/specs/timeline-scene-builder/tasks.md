@@ -102,7 +102,7 @@
   - _Requirements: 2.1, 2.2, 2.3, 2.5, 3.1, 3.2, 4.2, 4.3_
   - _Boundary: SceneFactoryTests_
 
-- [ ] 8.2 (P) バインディング適用・エラー系の統合テストを追加する
+- [x] 8.2 (P) バインディング適用・エラー系の統合テストを追加する
   - バインド適用成功時に対象 AnimationTrack のバインディングが指定 GameObject の Animator を返すことを検証する
   - GameObject 不在・同名重複(非アクティブ含む)・Animator 欠落・Track 名不一致・既存 Timeline 内の同名 AnimationTrack 重複で各エラーコードが返ることを検証する
   - 複数の不備が 1 回の実行で全件報告されることを検証する
