@@ -63,7 +63,7 @@
   - _Boundary: TrackBuilderRegistry_
 
 - [ ] 5. API 統合: パイプラインへの Scene フェーズ組み込み
-- [ ] 5.1 Phase A の Scene 静的検証を実装する
+- [x] 5.1 Phase A の Scene 静的検証を実装する
   - Timeline 参照の解決: 空欄は同一ビルド生成の TimelineAsset、Assets/ 始まりは既存アセットとして解決し、不在・型不一致・それ以外の値はエラーとして収集する
   - Prefab 行を Assets/ 配下のアセットパスとして解決し、Assets/ 外・不在・型不一致は行番号・参照パス付きエラーとして収集する
   - Track 名の事前検証: 標準構成(組み込み Animation キーのみ)ではクリップ行の Track 名集合と Ordinal 照合し、カスタム TrackBuilder 構成では Phase B の実 TimelineAsset 照合に委ねる。既存 Timeline 明示参照時は実トラック名と照合する

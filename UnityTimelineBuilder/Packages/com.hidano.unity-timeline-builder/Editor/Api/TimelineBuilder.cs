@@ -107,6 +107,18 @@ namespace Hidano.UnityTimelineBuilder.Editor
             if (errors.Count > 0)
                 return Failure(errors);
 
+            SceneBuildValidationResult sceneValidation = null;
+            if (parsed.ScenePlan != null)
+            {
+                var validator = new SceneBuildValidator();
+                if (!validator.TryValidate(parsed.ScenePlan, parsed.Rows, timelinePath, prefabPath,
+                    request.OutputDirectory, out sceneValidation, out var sceneErrors))
+                {
+                    errors.AddRange(sceneErrors);
+                    return Failure(errors);
+                }
+            }
+
             try
             {
                 EnsureOutputDirectory(request.OutputDirectory);
