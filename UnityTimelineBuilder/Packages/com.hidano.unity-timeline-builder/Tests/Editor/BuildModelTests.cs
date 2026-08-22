@@ -52,6 +52,59 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         }
 
         [Test]
+        public void BuildResultLegacyConstructorSynthesizesSingleOutputAndMapsFirstOutput()
+        {
+            var result = new BuildResult(true, "Assets/Timelines/Shot01.playable", "Assets/Prefabs/Shot01.prefab",
+                "Assets/Scenes/Shot01.unity", null);
+
+            Assert.That(result.Outputs, Has.Count.EqualTo(1));
+            Assert.That(result.Outputs[0].TimelineName, Is.EqualTo("Shot01"));
+            Assert.That(result.Outputs[0].ResolvedAssetName, Is.EqualTo("Shot01"));
+            Assert.That(result.Outputs[0].TimelineAssetPath, Is.EqualTo(result.TimelineAssetPath));
+            Assert.That(result.Outputs[0].PrefabPath, Is.EqualTo(result.PrefabPath));
+            Assert.That(result.Outputs[0].ScenePath, Is.EqualTo(result.ScenePath));
+            Assert.That(result.Outputs[0].HasScenePlan, Is.True);
+        }
+
+        [Test]
+        public void BuildResultWithNoLegacyPathsHasNoOutputs()
+        {
+            var result = new BuildResult(false, null, null, null);
+
+            Assert.That(result.Outputs, Is.Empty);
+            Assert.That(result.TimelineAssetPath, Is.Null);
+            Assert.That(result.PrefabPath, Is.Null);
+            Assert.That(result.ScenePath, Is.Null);
+        }
+
+        [Test]
+        public void BuildResultMapsLegacyPropertiesToFirstOutputAndCopiesOutputs()
+        {
+            var outputs = new List<BuildOutput>
+            {
+                new BuildOutput("First", "First", "first.playable", "first.prefab", null, false),
+                new BuildOutput("Second", "Second", "second.playable", "second.prefab", "second.unity", true)
+            };
+            var result = new BuildResult(true, outputs, null);
+            outputs.Clear();
+
+            Assert.That(result.Outputs, Has.Count.EqualTo(2));
+            Assert.That(result.TimelineAssetPath, Is.EqualTo("first.playable"));
+            Assert.That(result.PrefabPath, Is.EqualTo("first.prefab"));
+            Assert.That(result.ScenePath, Is.Null);
+        }
+
+        [Test]
+        public void BuildErrorLegacyConstructorDefaultsTimelineNameToNull()
+        {
+            var legacy = new BuildError(BuildErrorCode.Unexpected, null, null, "error");
+            var grouped = new BuildError(BuildErrorCode.Unexpected, 4, "sheet.csv", "error", "Main");
+
+            Assert.That(legacy.TimelineName, Is.Null);
+            Assert.That(grouped.TimelineName, Is.EqualTo("Main"));
+        }
+
+        [Test]
         public void ErrorCodeContainsEveryDefinedFailureCategory()
         {
             var expected = new[]
@@ -60,7 +113,7 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
                 "UnknownTrackType", "ResourceNotFound", "ResourceTypeMismatch", "ImportFailed",
                 "OutputWriteFailed", "Unexpected", "SceneTimelineNotFound", "ScenePrefabInvalid",
                 "BindTrackNotFound", "BindTargetNotFound", "BindTargetDuplicated",
-                "BindTargetMissingAnimator", "SceneWriteFailed", "SceneBuildCanceled", "BindTrackDuplicated"
+                "BindTargetMissingAnimator", "SceneWriteFailed", "SceneBuildCanceled", "BindTrackDuplicated", "AssetNameConflict"
             };
 
             CollectionAssert.AreEqual(expected, System.Enum.GetNames(typeof(BuildErrorCode)));
