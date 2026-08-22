@@ -61,13 +61,6 @@ namespace Hidano.UnityTimelineBuilder.Editor
             var resultErrors = new List<BuildError>();
             errors = resultErrors;
 
-            if (!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
-            {
-                resultErrors.Add(new BuildError(BuildErrorCode.SceneBuildCanceled, null, context.ScenePath,
-                    "Scene build was canceled because modified scenes were not saved."));
-                return false;
-            }
-
             try
             {
                 var scene = SceneManager.GetActiveScene();
