@@ -12,7 +12,6 @@ namespace Hidano.UnityTimelineBuilder.Editor
         private const int SuccessExitCode = 0;
         private const int BuildFailureExitCode = 1;
         private const int ArgumentFailureExitCode = 2;
-        private const string DefaultImportDirectory = "Assets/UnityTimelineBuilder/Imported";
 
         /// <summary>-executeMethod から呼び出されるエントリポイント。</summary>
         public static void Build()
@@ -108,7 +107,7 @@ namespace Hidano.UnityTimelineBuilder.Editor
                 SheetPath = sheetPath,
                 OutputDirectory = outputDirectory,
                 AssetName = GetOptional(values, "-assetName"),
-                ImportDirectory = GetOptional(values, "-importDir") ?? DefaultImportDirectory
+                ImportDirectory = GetOptional(values, "-importDir")
             };
         }
 

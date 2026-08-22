@@ -11,8 +11,6 @@ namespace Hidano.UnityTimelineBuilder.Editor
 {
     public static class TimelineBuilder
     {
-        private const string DefaultImportDirectory = "Assets/UnityTimelineBuilder/Imported";
-
         public static BuildResult Build(BuildRequest request)
         {
             ValidateRequest(request);
@@ -58,21 +56,24 @@ namespace Hidano.UnityTimelineBuilder.Editor
 
             var resolvedByGroup = new List<IReadOnlyList<ResolvedClipRow>>();
             var sceneValidationByGroup = new List<SceneBuildValidationResult>();
-            var context = new ResolveContext(request.ImportDirectory, Path.GetDirectoryName(request.SheetPath));
+            var sheetDirectory = Path.GetDirectoryName(request.SheetPath);
             for (var index = 0; index < parsed.Groups.Count; index++)
             {
                 var group = parsed.Groups[index];
+                var plan = plans[index];
                 var groupErrors = new List<BuildError>();
-                var resolvedRows = ResolveRows(group.Rows, context, request.SheetPath, groupErrors);
+                var resolvedRows = ResolveRows(group.Rows,
+                    kind => CreateResolveContext(request.ImportDirectory, plan.GroupDirectory,
+                        kind, sheetDirectory),
+                    request.SheetPath, groupErrors);
                 resolvedByGroup.Add(resolvedRows);
 
                 SceneBuildValidationResult sceneValidation = null;
                 if (group.ScenePlan != null)
                 {
-                    var plan = plans[index];
                     var validator = new SceneBuildValidator();
                     if (!validator.TryValidate(group.ScenePlan, group.Rows, plan.TimelineAssetPath,
-                        plan.PrefabPath, request.OutputDirectory, out sceneValidation, out var sceneErrors))
+                        plan.PrefabPath, plan.ScenePath, out sceneValidation, out var sceneErrors))
                         groupErrors.AddRange(sceneErrors);
                 }
                 sceneValidationByGroup.Add(sceneValidation);
@@ -100,7 +101,10 @@ namespace Hidano.UnityTimelineBuilder.Editor
                     null, null, null, group.ScenePlan != null);
                 try
                 {
-                    EnsureOutputDirectory(request.OutputDirectory);
+                    EnsureOutputDirectory(plan.GroupDirectory + "/Timelines");
+                    EnsureOutputDirectory(plan.GroupDirectory + "/Prefabs");
+                    if (group.ScenePlan != null)
+                        EnsureOutputDirectory(plan.GroupDirectory + "/Scenes");
                     var timeline = new TimelineAssetFactory().Create(resolvedByGroup[groupIndex], plan.TimelineAssetPath);
                     output = new BuildOutput(group.TimelineName, plan.AssetName,
                         plan.TimelineAssetPath, null, null, group.ScenePlan != null);
@@ -172,11 +176,32 @@ namespace Hidano.UnityTimelineBuilder.Editor
         public static BuildResult Build(string sheetPath, string outputDirectory, string assetName = null)
         {
             return Build(new BuildRequest { SheetPath = sheetPath, OutputDirectory = outputDirectory,
-                AssetName = assetName, ImportDirectory = DefaultImportDirectory });
+                AssetName = assetName });
         }
 
-        private static List<ResolvedClipRow> ResolveRows(IReadOnlyList<ClipRow> rows, ResolveContext context,
-            string sourcePath, List<BuildError> errors)
+        /// <summary>ImportDirectory の明示指定時はそこへ集約し、未指定時はグループフォルダ配下の
+        /// 種別サブフォルダ（AudioClips / Animations）へ取り込む。</summary>
+        private static ResolveContext CreateResolveContext(string importDirectory,
+            string groupDirectory, string resourceKind, string sheetDirectory)
+        {
+            var destination = string.IsNullOrWhiteSpace(importDirectory)
+                ? groupDirectory + "/" + ImportSubfolder(resourceKind)
+                : importDirectory;
+            return new ResolveContext(destination, sheetDirectory);
+        }
+
+        private static string ImportSubfolder(string resourceKind)
+        {
+            switch (resourceKind)
+            {
+                case "Audio": return "AudioClips";
+                case "Animation": return "Animations";
+                default: return resourceKind;
+            }
+        }
+
+        private static List<ResolvedClipRow> ResolveRows(IReadOnlyList<ClipRow> rows,
+            Func<string, ResolveContext> contextForKind, string sourcePath, List<BuildError> errors)
         {
             var resolved = new List<ResolvedClipRow>();
             foreach (var row in rows)
@@ -187,6 +212,7 @@ namespace Hidano.UnityTimelineBuilder.Editor
                     { errors.Add(new BuildError(BuildErrorCode.UnknownTrackType, row.LineNumber, null, "Unknown track type: " + row.TrackType)); continue; }
                     if (!ResourceResolverRegistry.TryGet(builder.ResourceKind, out var resolver))
                     { errors.Add(new BuildError(BuildErrorCode.ResourceNotFound, row.LineNumber, row.ResourcePath, "Resource resolver is not registered: " + builder.ResourceKind)); continue; }
+                    var context = contextForKind(builder.ResourceKind);
                     if (!resolver.TryResolve(row, context, out var asset, out var error))
                     { errors.Add(error ?? new BuildError(BuildErrorCode.ResourceNotFound, row.LineNumber, row.ResourcePath, "Resource could not be resolved: " + row.ResourcePath)); continue; }
                     if (asset == null || !resolver.AssetType.IsInstanceOfType(asset))
@@ -229,7 +255,6 @@ namespace Hidano.UnityTimelineBuilder.Editor
             RequireValue(request.SheetPath, nameof(request.SheetPath)); RequireValue(request.OutputDirectory, nameof(request.OutputDirectory));
             ValidateAssetsPath(request.OutputDirectory, nameof(request.OutputDirectory));
             if (!string.IsNullOrWhiteSpace(request.ImportDirectory)) ValidateAssetsPath(request.ImportDirectory, nameof(request.ImportDirectory));
-            else request.ImportDirectory = DefaultImportDirectory;
         }
         private static void RequireValue(string value, string name) { if (string.IsNullOrWhiteSpace(value)) throw new ArgumentException(name + " is required.", name); }
         private static void ValidateAssetsPath(string path, string name)
