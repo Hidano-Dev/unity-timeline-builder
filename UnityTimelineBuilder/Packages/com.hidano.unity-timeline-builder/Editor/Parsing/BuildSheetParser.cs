@@ -310,7 +310,7 @@ namespace Hidano.UnityTimelineBuilder.Editor
 
             foreach (var extension in KnownAssetExtensions)
             {
-                if (name.Length > extension.Length &&
+                if (name.Length >= extension.Length &&
                     name.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
                 {
                     name = name.Substring(0, name.Length - extension.Length);

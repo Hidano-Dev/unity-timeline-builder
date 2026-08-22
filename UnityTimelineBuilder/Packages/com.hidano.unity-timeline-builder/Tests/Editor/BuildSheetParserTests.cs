@@ -533,5 +533,24 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             Assert.That(outcome.Errors[0].Message, Does.Contain("Assets/"));
             Assert.That(outcome.Groups[0].ScenePlan.Definition.SceneName, Is.EqualTo("Stage1"));
         }
+
+        [Test]
+        public void RejectsNamesThatConsistOnlyOfAKnownExtension()
+        {
+            var rows = new List<IReadOnlyList<string>>
+            {
+                new[] { "trackType", "trackName", "clipName", "startTime", "clipIn", "duration", "resourcePath", "timeline" },
+                new[] { "Audio", "A", "Clip", "0", "0", "1", "Assets/a.wav", ".playable" },
+                new[] { "Scene", ".unity", "", "", "", "", "", "Main" },
+                new[] { "Audio", "B", "Clip", "0", "0", "1", "Assets/b.wav", "Main" }
+            };
+
+            var outcome = CreateParser().Parse(rows);
+
+            Assert.That(outcome.Errors, Has.Count.EqualTo(2));
+            Assert.That(outcome.Errors.Select(error => error.LineNumber), Is.EquivalentTo(new int?[] { 2, 3 }));
+            Assert.That(outcome.Errors[0].Message, Does.Contain(".playable"));
+            Assert.That(outcome.Errors[1].Message, Does.Contain(".unity"));
+        }
     }
 }

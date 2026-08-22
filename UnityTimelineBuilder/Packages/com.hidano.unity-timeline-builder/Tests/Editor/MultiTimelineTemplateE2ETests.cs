@@ -23,12 +23,18 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         private const string OutputDirectory = "Assets/UnityTimelineBuilder/Tests/MultiTemplateE2EOutput";
         private AnimationClip animationFixture;
         private bool audioDirectoryExisted;
+        private bool prefabDirectoryExisted;
+        private bool scenePrefabExisted;
+        private bool audioFileExisted;
 
         [SetUp]
         public void SetUp()
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             audioDirectoryExisted = AssetDatabase.IsValidFolder(AudioDirectory);
+            prefabDirectoryExisted = AssetDatabase.IsValidFolder(PrefabDirectory);
+            scenePrefabExisted = File.Exists(ProjectPath(ScenePrefabPath));
+            audioFileExisted = File.Exists(ProjectPath(AudioPath));
             EnsureFolder(AudioDirectory);
             EnsureFolder(PrefabDirectory);
             EnsureFolder(OutputDirectory);
@@ -56,9 +62,11 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             AssetDatabase.DeleteAsset(OutputDirectory);
-            AssetDatabase.DeleteAsset(ScenePrefabPath);
-            AssetDatabase.DeleteAsset(AudioPath);
-            if (AssetDatabase.IsValidFolder(PrefabDirectory))
+            if (!scenePrefabExisted)
+                AssetDatabase.DeleteAsset(ScenePrefabPath);
+            if (!audioFileExisted)
+                AssetDatabase.DeleteAsset(AudioPath);
+            if (!prefabDirectoryExisted && AssetDatabase.IsValidFolder(PrefabDirectory))
                 AssetDatabase.DeleteAsset(PrefabDirectory);
             if (!audioDirectoryExisted)
                 AssetDatabase.DeleteAsset(AudioDirectory);

@@ -24,12 +24,18 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         private const string PrefabPath = OutputDirectory + "/SampleScene/Prefabs/BundledTemplate.prefab";
         private AnimationClip animationFixture;
         private bool audioDirectoryExisted;
+        private bool prefabDirectoryExisted;
+        private bool scenePrefabExisted;
+        private bool audioFileExisted;
 
         [SetUp]
         public void SetUp()
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             audioDirectoryExisted = AssetDatabase.IsValidFolder(AudioDirectory);
+            prefabDirectoryExisted = AssetDatabase.IsValidFolder(PrefabDirectory);
+            scenePrefabExisted = File.Exists(ProjectPath(ScenePrefabPath));
+            audioFileExisted = File.Exists(ProjectPath(AudioPath));
             EnsureFolder(AudioDirectory);
             EnsureFolder(PrefabDirectory);
             EnsureFolder(OutputDirectory);
@@ -61,10 +67,12 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             AssetDatabase.DeleteAsset(PrefabPath);
             AssetDatabase.DeleteAsset(TimelinePath);
-            AssetDatabase.DeleteAsset(ScenePrefabPath);
-            AssetDatabase.DeleteAsset(AudioPath);
+            if (!scenePrefabExisted)
+                AssetDatabase.DeleteAsset(ScenePrefabPath);
+            if (!audioFileExisted)
+                AssetDatabase.DeleteAsset(AudioPath);
             AssetDatabase.DeleteAsset(OutputDirectory);
-            if (AssetDatabase.IsValidFolder(PrefabDirectory))
+            if (!prefabDirectoryExisted && AssetDatabase.IsValidFolder(PrefabDirectory))
                 AssetDatabase.DeleteAsset(PrefabDirectory);
             if (!audioDirectoryExisted)
                 AssetDatabase.DeleteAsset(AudioDirectory);
