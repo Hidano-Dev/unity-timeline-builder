@@ -8,19 +8,25 @@ namespace Hidano.UnityTimelineBuilder.Editor
 {
     internal sealed class ParseOutcome
     {
+        public IReadOnlyList<TimelineGroupPlan> Groups { get; }
+        public bool HasTimelineColumn { get; }
         public IReadOnlyList<ClipRow> Rows { get; }
         public IReadOnlyList<BuildError> Errors { get; }
         public string WarningMessage { get; }
         public SceneBuildPlan ScenePlan { get; }
 
-        internal ParseOutcome(IReadOnlyList<ClipRow> rows, IReadOnlyList<BuildError> errors, string warningMessage,
-            SceneBuildPlan scenePlan = null)
+        internal ParseOutcome(IReadOnlyList<TimelineGroupPlan> groups, IReadOnlyList<BuildError> errors,
+            string warningMessage, bool hasTimelineColumn)
         {
-            Rows = rows;
+            Groups = groups;
             Errors = errors;
             WarningMessage = warningMessage;
-            ScenePlan = scenePlan;
+            HasTimelineColumn = hasTimelineColumn;
+            Rows = groups.Count == 0 ? Array.Empty<ClipRow>() : groups[0].Rows;
+            ScenePlan = groups.Count == 0 ? null : groups[0].ScenePlan;
         }
+
+        // Kept temporarily for callers being migrated to the group-based outcome.
     }
 
     /// <summary>構築情報のヘッダー認識、列マッピング、行検証を行うパーサー。</summary>
@@ -51,71 +57,109 @@ namespace Hidano.UnityTimelineBuilder.Editor
                 throw new ArgumentNullException(nameof(rawRows));
 
             var errors = new List<BuildError>();
-            var parsedRows = new List<ClipRow>();
-            SceneDefinitionRow sceneDefinition = null;
-            var scenePrefabs = new List<ScenePrefabRow>();
-            var sceneBindings = new List<SceneBindRow>();
+            var groupBuilders = new List<GroupBuilder>();
+            var groupsByName = new Dictionary<string, GroupBuilder>(StringComparer.Ordinal);
+            GroupBuilder legacyGroup = null;
             var hasHeader = rawRows.Count > 0 && rawRows[0].Any(IsTrackTypeHeader);
             var columnIndexes = hasHeader ? MapHeader(rawRows[0], errors) : DefaultColumnIndexes();
+            var hasTimelineColumn = hasHeader && columnIndexes.ContainsKey("timeline");
             var warning = hasHeader ? null : "ヘッダー未検出のため既定列順で解釈します。";
 
             if (!hasHeader)
                 warningLogger(warning);
             if (errors.Count > 0)
-                return new ParseOutcome(parsedRows.AsReadOnly(), errors.AsReadOnly(), warning);
+                return new ParseOutcome(Array.Empty<TimelineGroupPlan>(), errors.AsReadOnly(), warning,
+                    hasTimelineColumn);
 
             var firstDataRow = hasHeader ? 1 : 0;
             for (var rowIndex = firstDataRow; rowIndex < rawRows.Count; rowIndex++)
             {
                 var lineNumber = rowIndex + 1;
                 var fields = rawRows[rowIndex] ?? Array.Empty<string>();
+                var timelineName = hasTimelineColumn
+                    ? NormalizeAssetName(GetValue(fields, columnIndexes, "timeline"))
+                    : null;
+                GroupBuilder group;
+                if (hasTimelineColumn)
+                {
+                    if (!TryGetValue(fields, columnIndexes, "timeline", out var timelineValue))
+                    {
+                        AddRangeError(lineNumber, "timeline は必須です", errors);
+                    }
+                    else if (timelineName.Length == 0 || !IsValidAssetFileName(timelineName))
+                    {
+                        AddRangeError(lineNumber, "Timeline 名がファイル名として不正です: " + timelineValue.Trim(), errors);
+                    }
+
+                    if (!groupsByName.TryGetValue(timelineName, out group))
+                    {
+                        group = new GroupBuilder(timelineName, lineNumber);
+                        groupsByName.Add(timelineName, group);
+                        groupBuilders.Add(group);
+                    }
+                }
+                else
+                {
+                    if (legacyGroup == null)
+                    {
+                        legacyGroup = new GroupBuilder(null, lineNumber);
+                        groupBuilders.Add(legacyGroup);
+                    }
+                    group = legacyGroup;
+                }
                 if (TryGetValue(fields, columnIndexes, "trackType", out var trackType) &&
                     IsSceneRowType(trackType))
                 {
                     ParseSceneRow(fields, lineNumber, columnIndexes, trackType,
-                        ref sceneDefinition, scenePrefabs, sceneBindings, errors);
+                        group, errors);
                 }
                 else
                 {
-                    ParseRow(fields, lineNumber, columnIndexes, parsedRows, errors);
+                    ParseRow(fields, lineNumber, columnIndexes, group.Rows, errors);
                 }
             }
 
-            ValidateSceneRows(sceneDefinition, scenePrefabs, sceneBindings, errors);
-
-            var scenePlan = sceneDefinition == null
-                ? null
-                : new SceneBuildPlan(sceneDefinition, scenePrefabs.AsReadOnly(), sceneBindings.AsReadOnly());
-            return new ParseOutcome(parsedRows.AsReadOnly(), errors.AsReadOnly(), warning, scenePlan);
+            var plans = new List<TimelineGroupPlan>();
+            foreach (var group in groupBuilders)
+            {
+                ValidateSceneRows(group.SceneDefinition, group.ScenePrefabs, group.SceneBindings, errors);
+                var scenePlan = group.SceneDefinition == null
+                    ? null
+                    : new SceneBuildPlan(group.SceneDefinition, group.ScenePrefabs.AsReadOnly(),
+                        group.SceneBindings.AsReadOnly());
+                plans.Add(new TimelineGroupPlan(group.TimelineName, group.FirstLineNumber,
+                    group.Rows.AsReadOnly(), scenePlan));
+            }
+            return new ParseOutcome(plans.AsReadOnly(), errors.AsReadOnly(), warning, hasTimelineColumn);
         }
 
         private static void ParseSceneRow(IReadOnlyList<string> fields, int lineNumber,
             IReadOnlyDictionary<string, int> indexes, string trackType,
-            ref SceneDefinitionRow definition, List<ScenePrefabRow> prefabs,
-            List<SceneBindRow> bindings, List<BuildError> errors)
+            GroupBuilder group, List<BuildError> errors)
         {
+            var definition = group.SceneDefinition;
             switch (trackType.Trim().ToLowerInvariant())
             {
                 case "scene":
-                    var sceneName = GetValue(fields, indexes, "trackName");
-                    if (!TryGetValue(fields, indexes, "trackName", out _))
+                    var sceneName = NormalizeAssetName(GetValue(fields, indexes, "trackName"));
+                    if (!TryGetValue(fields, indexes, "trackName", out var rawSceneName))
                         AddRangeError(lineNumber, "Scene 行の必須値がありません: trackName (Scene 名)", errors);
-                    else if (!IsValidSceneName(sceneName))
-                        AddRangeError(lineNumber, "Scene 名がファイル名として不正です: " + sceneName, errors);
+                    else if (sceneName.Length == 0 || !IsValidAssetFileName(sceneName))
+                        AddRangeError(lineNumber, "Scene 名がファイル名として不正です: " + rawSceneName.Trim(), errors);
 
                     if (definition != null)
                     {
-                        AddRangeError(lineNumber, "Scene 行は 1 シートに 1 行のみ指定できます。", errors);
+                        AddRangeError(lineNumber, "同一 Timeline グループ内の Scene 行は 1 行のみ指定できます。", errors);
                         break;
                     }
 
-                    definition = new SceneDefinitionRow(lineNumber, sceneName,
+                    group.SceneDefinition = new SceneDefinitionRow(lineNumber, sceneName,
                         StripSurroundingQuotes(GetValue(fields, indexes, "resourcePath")));
                     break;
                 case "sceneprefab":
                     if (!TryGetValue(fields, indexes, "resourcePath", out _))
                         AddRangeError(lineNumber, "ScenePrefab 行の必須値がありません: resourcePath (Prefab)", errors);
-                    prefabs.Add(new ScenePrefabRow(lineNumber,
+                    group.ScenePrefabs.Add(new ScenePrefabRow(lineNumber,
                         StripSurroundingQuotes(GetValue(fields, indexes, "resourcePath"))));
                     break;
                 case "scenebind":
@@ -125,7 +169,7 @@ namespace Hidano.UnityTimelineBuilder.Editor
                         AddRangeError(lineNumber, "SceneBind 行の必須値がありません: trackName (Track 名)", errors);
                     if (!TryGetValue(fields, indexes, "resourcePath", out _))
                         AddRangeError(lineNumber, "SceneBind 行の必須値がありません: resourcePath (GameObject 名)", errors);
-                    bindings.Add(new SceneBindRow(lineNumber,
+                    group.SceneBindings.Add(new SceneBindRow(lineNumber,
                         bindTrackName, gameObjectName));
                     break;
             }
@@ -249,7 +293,33 @@ namespace Hidano.UnityTimelineBuilder.Editor
         }
 
         private static void AddRangeError(int lineNumber, string message, List<BuildError> errors) => errors.Add(new BuildError(BuildErrorCode.RowValidationError, lineNumber, null, message));
-        private static bool IsValidSceneName(string value)
+
+        private static readonly string[] KnownAssetExtensions = { ".playable", ".prefab", ".unity", ".asset", ".csv" };
+
+        /// <summary>パス様の入力は最後の区切り文字（/ または \）以降を採用し、既知の拡張子を除去する。
+        /// ドットを含む名前（例: "Ver1.5"）は既知の拡張子でない限り保持する。</summary>
+        internal static string NormalizeAssetName(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return value ?? string.Empty;
+
+            var name = value.Trim();
+            var separatorIndex = name.LastIndexOfAny(new[] { '/', '\\' });
+            if (separatorIndex >= 0)
+                name = name.Substring(separatorIndex + 1);
+
+            foreach (var extension in KnownAssetExtensions)
+            {
+                if (name.Length >= extension.Length &&
+                    name.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+                {
+                    name = name.Substring(0, name.Length - extension.Length);
+                    break;
+                }
+            }
+            return name.Trim();
+        }
+        private static bool IsValidAssetFileName(string value)
         {
             if (string.IsNullOrEmpty(value) || value == "." || value == ".." || value[value.Length - 1] == '.' || value[value.Length - 1] == ' ')
                 return false;
@@ -270,5 +340,21 @@ namespace Hidano.UnityTimelineBuilder.Editor
                 string.Equals(normalized, "SceneBind", StringComparison.OrdinalIgnoreCase);
         }
         private static Dictionary<string, int> DefaultColumnIndexes() => ColumnOrder.Select((name, index) => new { name, index }).ToDictionary(item => item.name, item => item.index, StringComparer.OrdinalIgnoreCase);
+
+        private sealed class GroupBuilder
+        {
+            public readonly string TimelineName;
+            public readonly int FirstLineNumber;
+            public readonly List<ClipRow> Rows = new List<ClipRow>();
+            public readonly List<ScenePrefabRow> ScenePrefabs = new List<ScenePrefabRow>();
+            public readonly List<SceneBindRow> SceneBindings = new List<SceneBindRow>();
+            public SceneDefinitionRow SceneDefinition;
+
+            public GroupBuilder(string timelineName, int firstLineNumber)
+            {
+                TimelineName = timelineName;
+                FirstLineNumber = firstLineNumber;
+            }
+        }
     }
 }

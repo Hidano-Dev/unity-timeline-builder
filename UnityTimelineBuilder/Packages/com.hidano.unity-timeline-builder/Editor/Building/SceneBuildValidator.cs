@@ -24,7 +24,7 @@ namespace Hidano.UnityTimelineBuilder.Editor
     internal sealed class SceneBuildValidator
     {
         public bool TryValidate(SceneBuildPlan plan, IReadOnlyList<ClipRow> clipRows,
-            string generatedTimelinePath, string generatedPrefabPath, string outputDirectory,
+            string generatedTimelinePath, string generatedPrefabPath, string plannedScenePath,
             out SceneBuildValidationResult result, out IReadOnlyList<BuildError> errors)
         {
             if (plan == null) throw new ArgumentNullException(nameof(plan));
@@ -35,7 +35,7 @@ namespace Hidano.UnityTimelineBuilder.Editor
             var timeline = ResolveTimeline(plan.Definition, generatedTimelinePath, validationErrors);
             var prefabs = ResolvePrefabs(plan.Prefabs, validationErrors);
             ValidateTrackNames(plan.Bindings, clipRows, timeline, plan.Definition, validationErrors);
-            ValidateSceneOutputPath(plan.Definition, outputDirectory, generatedTimelinePath,
+            ValidateSceneOutputPath(plan.Definition, plannedScenePath, generatedTimelinePath,
                 generatedPrefabPath, validationErrors);
 
             errors = validationErrors;
@@ -116,10 +116,10 @@ namespace Hidano.UnityTimelineBuilder.Editor
             }
         }
 
-        private static void ValidateSceneOutputPath(SceneDefinitionRow definition, string outputDirectory,
+        private static void ValidateSceneOutputPath(SceneDefinitionRow definition, string plannedScenePath,
             string generatedTimelinePath, string generatedPrefabPath, List<BuildError> errors)
         {
-            var scenePath = outputDirectory.Replace('\\', '/').TrimEnd('/') + "/" + definition.SceneName + ".unity";
+            var scenePath = (plannedScenePath ?? string.Empty).Replace('\\', '/');
             if (string.Equals(scenePath, generatedTimelinePath, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(scenePath, generatedPrefabPath, StringComparison.OrdinalIgnoreCase))
             {

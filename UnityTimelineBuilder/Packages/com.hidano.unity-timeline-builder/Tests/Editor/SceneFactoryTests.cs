@@ -21,9 +21,10 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         private const string AnimationPath = FixtureDirectory + "/SceneFactoryAnimation.anim";
         private const string CharacterPrefabPath = FixtureDirectory + "/Character.prefab";
         private const string PropPrefabPath = FixtureDirectory + "/Prop.prefab";
-        private const string TimelinePath = OutputDirectory + "/SceneFactory.playable";
-        private const string PrefabPath = OutputDirectory + "/SceneFactory.prefab";
-        private const string ScenePath = OutputDirectory + "/SceneFactory.unity";
+        private const string AvatarPath = FixtureDirectory + "/GenericAvatar.asset";
+        private const string TimelinePath = OutputDirectory + "/SceneFactory/Timelines/SceneFactory.playable";
+        private const string PrefabPath = OutputDirectory + "/SceneFactory/Prefabs/SceneFactory.prefab";
+        private const string ScenePath = OutputDirectory + "/SceneFactory/Scenes/SceneFactory.unity";
 
         [SetUp]
         public void SetUp()
@@ -52,6 +53,7 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             AssetDatabase.DeleteAsset(TimelinePath);
             AssetDatabase.DeleteAsset(CharacterPrefabPath);
             AssetDatabase.DeleteAsset(PropPrefabPath);
+            AssetDatabase.DeleteAsset(AvatarPath);
             AssetDatabase.DeleteAsset(AnimationPath);
             AssetDatabase.DeleteAsset(OutputDirectory);
             AssetDatabase.DeleteAsset(FixtureDirectory);
@@ -76,9 +78,40 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
 
             Assert.That(director, Is.Not.Null);
             Assert.That(director.playableAsset, Is.SameAs(timeline));
-            Assert.That(roots.Count(root => PrefabUtility.IsAnyPrefabInstanceRoot(root)), Is.EqualTo(2));
+            Assert.That(roots.Count(root => PrefabUtility.IsAnyPrefabInstanceRoot(root)), Is.EqualTo(3));
+            Assert.That(PrefabUtility.IsAnyPrefabInstanceRoot(directorObject), Is.True);
+            Assert.That(AssetDatabase.GetAssetPath(
+                PrefabUtility.GetCorrespondingObjectFromSource(directorObject)), Is.EqualTo(PrefabPath));
             Assert.That(roots.Single(root => root.name == "Character").GetComponent<Animator>(), Is.Not.Null);
             Assert.That(roots.Single(root => root.name == "Prop").GetComponent<Animator>(), Is.Not.Null);
+        }
+
+        [Test]
+        public void RemovesAvatarFromSceneInstanceWhenMotionIsGeneric()
+        {
+            var avatarSource = new GameObject("AvatarSource");
+            var avatar = AvatarBuilder.BuildGenericAvatar(avatarSource, string.Empty);
+            avatar.name = "GenericAvatar";
+            AssetDatabase.CreateAsset(avatar, AvatarPath);
+            UnityEngine.Object.DestroyImmediate(avatarSource);
+
+            var character = new GameObject("Character");
+            character.AddComponent<Animator>().avatar = AssetDatabase.LoadAssetAtPath<Avatar>(AvatarPath);
+            PrefabUtility.SaveAsPrefabAsset(character, CharacterPrefabPath);
+            UnityEngine.Object.DestroyImmediate(character);
+            AssetDatabase.SaveAssets();
+
+            var result = Build();
+            Assert.That(result.Success, Is.True, FormatErrors(result));
+
+            var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            var sceneAnimator = scene.GetRootGameObjects()
+                .Single(root => root.name == "Character").GetComponent<Animator>();
+            var prefabAnimator = AssetDatabase.LoadAssetAtPath<GameObject>(CharacterPrefabPath)
+                .GetComponent<Animator>();
+
+            Assert.That(sceneAnimator.avatar, Is.Null);
+            Assert.That(prefabAnimator.avatar, Is.Not.Null);
         }
 
         [Test]

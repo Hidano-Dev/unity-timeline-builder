@@ -10,18 +10,17 @@ using UnityEngine.Timeline;
 
 namespace Hidano.UnityTimelineBuilder.Editor.Tests
 {
-    public sealed class BundledTemplateE2ETests
+    public sealed class MultiTimelineTemplateE2ETests
     {
-        private const string TemplatePath = "Packages/com.hidano.unity-timeline-builder/Documentation~/timeline-template.csv";
+        private const string TemplatePath =
+            "Packages/com.hidano.unity-timeline-builder/Documentation~/multi-timeline-template.csv";
         private const string AudioDirectory = "Assets/Audio";
         private const string AnimationDirectory = "Assets/Animations";
         private const string AudioPath = AudioDirectory + "/intro.wav";
         private const string AnimationPath = AnimationDirectory + "/character.fbx";
         private const string PrefabDirectory = "Assets/Prefabs";
         private const string ScenePrefabPath = PrefabDirectory + "/Character.prefab";
-        private const string OutputDirectory = "Assets/UnityTimelineBuilder/Tests/TemplateE2EOutput";
-        private const string TimelinePath = OutputDirectory + "/SampleScene/Timelines/BundledTemplate.playable";
-        private const string PrefabPath = OutputDirectory + "/SampleScene/Prefabs/BundledTemplate.prefab";
+        private const string OutputDirectory = "Assets/UnityTimelineBuilder/Tests/MultiTemplateE2EOutput";
         private AnimationClip animationFixture;
         private bool audioDirectoryExisted;
         private bool prefabDirectoryExisted;
@@ -40,15 +39,12 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             EnsureFolder(PrefabDirectory);
             EnsureFolder(OutputDirectory);
 
-            var characterRoot = new GameObject("Character");
-            var animatorObject = new GameObject("CharacterRoot");
-            animatorObject.transform.SetParent(characterRoot.transform);
-            animatorObject.AddComponent<Animator>();
-            PrefabUtility.SaveAsPrefabAsset(characterRoot, ScenePrefabPath);
-            UnityEngine.Object.DestroyImmediate(characterRoot);
-            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh();
+            var character = new GameObject("Character");
+            var characterRoot = new GameObject("CharacterRoot");
+            characterRoot.transform.SetParent(character.transform);
+            characterRoot.AddComponent<Animator>();
+            PrefabUtility.SaveAsPrefabAsset(character, ScenePrefabPath);
+            UnityEngine.Object.DestroyImmediate(character);
 
             File.WriteAllBytes(ProjectPath(AudioPath), CreateSilentWave(48000));
             AssetDatabase.ImportAsset(AudioPath, ImportAssetOptions.ForceSynchronousImport);
@@ -65,13 +61,11 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         public void TearDown()
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            AssetDatabase.DeleteAsset(PrefabPath);
-            AssetDatabase.DeleteAsset(TimelinePath);
+            AssetDatabase.DeleteAsset(OutputDirectory);
             if (!scenePrefabExisted)
                 AssetDatabase.DeleteAsset(ScenePrefabPath);
             if (!audioFileExisted)
                 AssetDatabase.DeleteAsset(AudioPath);
-            AssetDatabase.DeleteAsset(OutputDirectory);
             if (!prefabDirectoryExisted && AssetDatabase.IsValidFolder(PrefabDirectory))
                 AssetDatabase.DeleteAsset(PrefabDirectory);
             if (!audioDirectoryExisted)
@@ -84,7 +78,7 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         }
 
         [Test]
-        public void BuildsSuccessfullyFromBundledTemplateWithoutChangingItsInput()
+        public void BuildsBundledMultiTimelineTemplateWithoutChangingItsInput()
         {
             var templateBeforeBuild = File.ReadAllText(ProjectPath(TemplatePath));
 
@@ -92,44 +86,76 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             {
                 SheetPath = ProjectPath(TemplatePath),
                 OutputDirectory = OutputDirectory,
-                AssetName = "BundledTemplate",
                 ImportDirectory = "Assets/UnityTimelineBuilder/Imported"
             });
 
             Assert.That(result, Is.Not.Null);
-            Assert.That(result.Success, Is.True,
-                string.Join("\n", result.Errors.Select(error => error.Message)));
+            Assert.That(result.Success, Is.True, FormatErrors(result));
             Assert.That(result.Errors, Is.Empty);
             Assert.That(File.ReadAllText(ProjectPath(TemplatePath)), Is.EqualTo(templateBeforeBuild));
+            Assert.That(result.Outputs, Has.Count.EqualTo(2));
+            Assert.That(result.Outputs.Select(output => output.TimelineName),
+                Is.EqualTo(new[] { "Opening", "Battle" }));
 
-            var timeline = AssetDatabase.LoadAssetAtPath<TimelineAsset>(TimelinePath);
+            var opening = result.Outputs.Single(output => output.TimelineName == "Opening");
+            var battle = result.Outputs.Single(output => output.TimelineName == "Battle");
+            Assert.That(opening.TimelineAssetPath, Is.EqualTo(OutputDirectory + "/OpeningScene/Timelines/Opening.playable"));
+            Assert.That(opening.PrefabPath, Is.EqualTo(OutputDirectory + "/OpeningScene/Prefabs/Opening.prefab"));
+            Assert.That(opening.ScenePath, Is.EqualTo(OutputDirectory + "/OpeningScene/Scenes/OpeningScene.unity"));
+            Assert.That(battle.TimelineAssetPath, Is.EqualTo(OutputDirectory + "/Battle/Timelines/Battle.playable"));
+            Assert.That(battle.PrefabPath, Is.EqualTo(OutputDirectory + "/Battle/Prefabs/Battle.prefab"));
+            Assert.That(battle.ScenePath, Is.Null);
+
+            AssertTimeline(opening.TimelineAssetPath, "Opening", 0.5);
+            AssertTimeline(battle.TimelineAssetPath, "Battle", 1.0);
+            AssertPrefabReferencesTimeline(opening.PrefabPath, opening.TimelineAssetPath);
+            AssertPrefabReferencesTimeline(battle.PrefabPath, battle.TimelineAssetPath);
+            AssertSceneReferencesTimeline(opening.ScenePath, opening.TimelineAssetPath);
+        }
+
+        private static void AssertTimeline(string timelinePath, string expectedGroup, double animationStart)
+        {
+            var timeline = AssetDatabase.LoadAssetAtPath<TimelineAsset>(timelinePath);
             Assert.That(timeline, Is.Not.Null);
             var tracks = timeline.GetOutputTracks().ToArray();
             Assert.That(tracks, Has.Length.EqualTo(2));
-
-            var audioTrack = tracks.Single(track => track is AudioTrack);
-            Assert.That(audioTrack.name, Is.EqualTo("BGM"));
-            var audioClip = audioTrack.GetClips().Single();
-            Assert.That(audioClip.start, Is.EqualTo(0).Within(0.0001));
-            Assert.That(audioClip.duration, Is.EqualTo(3.2).Within(0.0001));
-            Assert.That(audioClip.displayName, Is.EqualTo("intro"));
-            Assert.That(((AudioPlayableAsset)audioClip.asset).clip,
-                Is.SameAs(AssetDatabase.LoadAssetAtPath<AudioClip>(AudioPath)));
-
-            var animationTrack = tracks.Single(track => track is AnimationTrack);
-            Assert.That(animationTrack.name, Is.EqualTo("Character"));
-            var animationClip = animationTrack.GetClips().Single();
-            Assert.That(animationClip.start, Is.EqualTo(0.5).Within(0.0001));
-            Assert.That(animationClip.duration, Is.EqualTo(2.5).Within(0.0001));
+            Assert.That(tracks.OfType<AudioTrack>().Single().name, Is.EqualTo("BGM"));
+            Assert.That(tracks.OfType<AnimationTrack>().Single().name, Is.EqualTo("Character"));
+            Assert.That(tracks.OfType<AudioTrack>().Single().GetClips().Single().displayName,
+                Is.EqualTo("intro"));
+            var animationClip = tracks.OfType<AnimationTrack>().Single().GetClips().Single();
             Assert.That(animationClip.displayName, Is.EqualTo("intro"));
-            Assert.That(((AnimationPlayableAsset)animationClip.asset).clip,
-                Is.SameAs(animationFixture));
+            Assert.That(animationClip.start, Is.EqualTo(animationStart).Within(0.0001));
+            Assert.That(animationClip.duration, Is.EqualTo(2.5).Within(0.0001));
+            Assert.That(timeline.name, Is.EqualTo(expectedGroup));
+        }
 
-            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
+        private static void AssertPrefabReferencesTimeline(string prefabPath, string timelinePath)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
             Assert.That(prefab, Is.Not.Null);
             var director = prefab.GetComponent<PlayableDirector>();
             Assert.That(director, Is.Not.Null);
+            Assert.That(director.playableAsset,
+                Is.SameAs(AssetDatabase.LoadAssetAtPath<TimelineAsset>(timelinePath)));
+        }
+
+        private static void AssertSceneReferencesTimeline(string scenePath, string timelinePath)
+        {
+            var scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+            var timeline = AssetDatabase.LoadAssetAtPath<TimelineAsset>(timelinePath);
+            var director = scene.GetRootGameObjects()
+                .Select(root => root.GetComponent<PlayableDirector>())
+                .Single(component => component != null);
             Assert.That(director.playableAsset, Is.SameAs(timeline));
+            var track = timeline.GetOutputTracks().OfType<AnimationTrack>().Single();
+            Assert.That(director.GetGenericBinding(track), Is.Not.Null);
+            Assert.That(director.GetGenericBinding(track).name, Is.EqualTo("CharacterRoot"));
+        }
+
+        private static string FormatErrors(BuildResult result)
+        {
+            return string.Join("\n", result.Errors.Select(error => error.Code + ": " + error.Message));
         }
 
         private static string ProjectPath(string path)
@@ -169,11 +195,11 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         {
             var parts = assetPath.Split('/');
             var current = parts[0];
-            for (var i = 1; i < parts.Length; i++)
+            for (var index = 1; index < parts.Length; index++)
             {
-                var next = current + "/" + parts[i];
+                var next = current + "/" + parts[index];
                 if (!AssetDatabase.IsValidFolder(next))
-                    AssetDatabase.CreateFolder(current, parts[i]);
+                    AssetDatabase.CreateFolder(current, parts[index]);
                 current = next;
             }
         }
@@ -182,11 +208,7 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         {
             private readonly AnimationClip clip;
 
-            public TemplateAnimationResolver(AnimationClip clip)
-            {
-                this.clip = clip;
-            }
-
+            public TemplateAnimationResolver(AnimationClip clip) { this.clip = clip; }
             public string ResourceKind => "Animation";
             public Type AssetType => typeof(AnimationClip);
 

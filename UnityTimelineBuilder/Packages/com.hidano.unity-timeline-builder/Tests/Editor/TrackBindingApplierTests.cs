@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
+using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Playables;
@@ -14,6 +16,7 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         private GameObject directorObject;
         private PlayableDirector director;
         private TimelineAsset timeline;
+        private readonly List<Object> createdObjects = new List<Object>();
 
         [SetUp]
         public void SetUp()
@@ -31,6 +34,12 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             if (scene.IsValid() && scene.isLoaded)
                 EditorSceneManager.CloseScene(scene, true);
             Object.DestroyImmediate(timeline);
+            foreach (var created in createdObjects)
+            {
+                if (created != null)
+                    Object.DestroyImmediate(created);
+            }
+            createdObjects.Clear();
         }
 
         [Test]
@@ -146,6 +155,83 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             }));
             Assert.That(errors.Select(error => error.LineNumber), Is.EquivalentTo(
                 new int?[] { 20, 21, 22, 23, 24 }));
+        }
+
+        private Animator CreateAnimatorWithGenericAvatar(string name)
+        {
+            var target = new GameObject(name);
+            var animator = target.AddComponent<Animator>();
+            var avatar = AvatarBuilder.BuildGenericAvatar(target, string.Empty);
+            createdObjects.Add(avatar);
+            animator.avatar = avatar;
+            return animator;
+        }
+
+        private AnimationClip CreateGenericClip()
+        {
+            var clip = new AnimationClip();
+            clip.SetCurve(string.Empty, typeof(Transform), "localPosition.x",
+                AnimationCurve.Linear(0, 0, 1, 1));
+            createdObjects.Add(clip);
+            return clip;
+        }
+
+        /// <summary>muscle カーブを持たせて humanMotion == true のクリップを作る。</summary>
+        private AnimationClip CreateHumanoidClip()
+        {
+            var clip = new AnimationClip();
+            clip.SetCurve(string.Empty, typeof(Animator), "Spine Front-Back",
+                AnimationCurve.Linear(0, 0, 1, 1));
+            createdObjects.Add(clip);
+            return clip;
+        }
+
+        private static void AddClip(AnimationTrack track, AnimationClip clip)
+        {
+            track.CreateClip(clip);
+        }
+
+        [Test]
+        public void RemovesAvatarWhenTrackClipsAreAllGeneric()
+        {
+            var animator = CreateAnimatorWithGenericAvatar("Character");
+            var track = timeline.CreateTrack<AnimationTrack>(null, "Move");
+            AddClip(track, CreateGenericClip());
+
+            var errors = new TrackBindingApplier().Apply(director, timeline, scene, directorObject,
+                new[] { new SceneBindRow(8, "Move", "Character") });
+
+            Assert.That(errors, Is.Empty);
+            Assert.That(animator.avatar, Is.Null);
+            Assert.That(director.GetGenericBinding(track), Is.SameAs(animator));
+        }
+
+        [Test]
+        public void KeepsAvatarWhenTrackContainsHumanoidClip()
+        {
+            var animator = CreateAnimatorWithGenericAvatar("Character");
+            var track = timeline.CreateTrack<AnimationTrack>(null, "Move");
+            AddClip(track, CreateGenericClip());
+            AddClip(track, CreateHumanoidClip());
+
+            var errors = new TrackBindingApplier().Apply(director, timeline, scene, directorObject,
+                new[] { new SceneBindRow(8, "Move", "Character") });
+
+            Assert.That(errors, Is.Empty);
+            Assert.That(animator.avatar, Is.Not.Null);
+        }
+
+        [Test]
+        public void KeepsAvatarWhenTrackHasNoClips()
+        {
+            var animator = CreateAnimatorWithGenericAvatar("Character");
+            timeline.CreateTrack<AnimationTrack>(null, "Move");
+
+            var errors = new TrackBindingApplier().Apply(director, timeline, scene, directorObject,
+                new[] { new SceneBindRow(8, "Move", "Character") });
+
+            Assert.That(errors, Is.Empty);
+            Assert.That(animator.avatar, Is.Not.Null);
         }
 
         [Test]

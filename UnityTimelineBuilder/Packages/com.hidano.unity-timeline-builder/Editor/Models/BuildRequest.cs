@@ -12,7 +12,8 @@ namespace Hidano.UnityTimelineBuilder.Editor
         /// <summary>生成アセット名。未指定時はシートファイル名を使用する。</summary>
         public string AssetName { get; set; }
 
-        /// <summary>外部リソースのインポート先。未指定時は既定ディレクトリを使用する。</summary>
+        /// <summary>外部リソースのインポート先。明示指定時はそこへ集約し、
+        /// 未指定時は各グループフォルダ配下（AudioClips / Animations）へ取り込む。</summary>
         public string ImportDirectory { get; set; }
     }
 }

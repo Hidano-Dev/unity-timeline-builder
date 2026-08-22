@@ -78,10 +78,27 @@ namespace Hidano.UnityTimelineBuilder.Editor
                     continue;
                 }
 
+                RemoveAvatarForGenericMotion(matchingTracks[0], animator);
                 director.SetGenericBinding(matchingTracks[0], animator);
             }
 
             return errors;
+        }
+
+        /// <summary>トラックのモーションがすべて Generic の場合、Humanoid 用 Avatar が残っていると
+        /// 再生されないため、バインド先 Animator から Avatar を外す(シーンインスタンス側のみ)。</summary>
+        private static void RemoveAvatarForGenericMotion(AnimationTrack track, Animator animator)
+        {
+            if (animator.avatar == null)
+                return;
+
+            var clips = track.GetClips()
+                .Select(clip => clip.asset as AnimationPlayableAsset)
+                .Where(playable => playable != null && playable.clip != null)
+                .Select(playable => playable.clip)
+                .ToArray();
+            if (clips.Length > 0 && clips.All(clip => !clip.humanMotion))
+                animator.avatar = null;
         }
 
         private static IReadOnlyList<GameObject> FindTargets(Scene scene, GameObject directorObject)

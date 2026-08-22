@@ -17,9 +17,11 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         private const string AudioAssetPath = FixtureDirectory + "/TimelineIntegrationAudio.wav";
         private const string AnimationAssetPath = FixtureDirectory + "/TimelineIntegrationAnimation.anim";
         private const string OutputDirectory = "Assets/UnityTimelineBuilder/Tests/IntegrationOutput";
-        private const string TimelineAssetPath = OutputDirectory + "/TimelineIntegration.playable";
-        private const string PrefabAssetPath = OutputDirectory + "/TimelineIntegration.prefab";
-        private const string SceneAssetPath = OutputDirectory + "/TimelineIntegrationScene.unity";
+        private const string TimelineAssetPath = OutputDirectory + "/TimelineIntegration/Timelines/TimelineIntegration.playable";
+        private const string PrefabAssetPath = OutputDirectory + "/TimelineIntegration/Prefabs/TimelineIntegration.prefab";
+        private const string SceneTimelineAssetPath = OutputDirectory + "/TimelineIntegrationScene/Timelines/TimelineIntegration.playable";
+        private const string ScenePrefabAssetPath = OutputDirectory + "/TimelineIntegrationScene/Prefabs/TimelineIntegration.prefab";
+        private const string SceneAssetPath = OutputDirectory + "/TimelineIntegrationScene/Scenes/TimelineIntegrationScene.unity";
         private const string ScenePrefabPath = FixtureDirectory + "/TimelineIntegrationCharacter.prefab";
         private const string SceneFixtureSheetPath = FixtureDirectory + "/scene-integration.csv";
 
@@ -46,6 +48,8 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         {
             AssetDatabase.DeleteAsset(PrefabAssetPath);
             AssetDatabase.DeleteAsset(TimelineAssetPath);
+            AssetDatabase.DeleteAsset(ScenePrefabAssetPath);
+            AssetDatabase.DeleteAsset(SceneTimelineAssetPath);
             AssetDatabase.DeleteAsset(SceneAssetPath);
             AssetDatabase.DeleteAsset(ScenePrefabPath);
             if (File.Exists(GetProjectPath(SceneFixtureSheetPath)))
@@ -122,7 +126,7 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             Assert.That(result.Success, Is.True, string.Join("\n", result.Errors.Select(error => error.Message)));
             Assert.That(AssetDatabase.IsValidFolder(nestedOutput), Is.True);
             Assert.That(AssetDatabase.LoadAssetAtPath<TimelineAsset>(
-                nestedOutput + "/TimelineIntegrationNested.playable"), Is.Not.Null);
+                nestedOutput + "/TimelineIntegrationNested/Timelines/TimelineIntegrationNested.playable"), Is.Not.Null);
         }
 
         [Test]
@@ -148,8 +152,8 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             });
 
             Assert.That(result.Success, Is.True, FormatErrors(result));
-            Assert.That(result.TimelineAssetPath, Is.EqualTo(TimelineAssetPath));
-            Assert.That(result.PrefabPath, Is.EqualTo(PrefabAssetPath));
+            Assert.That(result.TimelineAssetPath, Is.EqualTo(SceneTimelineAssetPath));
+            Assert.That(result.PrefabPath, Is.EqualTo(ScenePrefabAssetPath));
             Assert.That(result.ScenePath, Is.EqualTo(SceneAssetPath));
             Assert.That(File.Exists(GetProjectPath(SceneAssetPath)), Is.True);
         }
@@ -181,8 +185,8 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             }
 
             Assert.That(result.Success, Is.False);
-            Assert.That(result.TimelineAssetPath, Is.EqualTo(TimelineAssetPath));
-            Assert.That(result.PrefabPath, Is.EqualTo(PrefabAssetPath));
+            Assert.That(result.TimelineAssetPath, Is.EqualTo(SceneTimelineAssetPath));
+            Assert.That(result.PrefabPath, Is.EqualTo(ScenePrefabAssetPath));
             Assert.That(result.ScenePath, Is.Null);
             Assert.That(result.Errors.Any(error => error.Code == BuildErrorCode.BindTargetNotFound), Is.True);
             Assert.That(File.Exists(GetProjectPath(SceneAssetPath)), Is.False);

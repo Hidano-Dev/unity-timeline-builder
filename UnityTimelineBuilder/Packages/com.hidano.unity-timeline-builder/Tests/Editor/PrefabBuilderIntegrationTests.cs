@@ -17,8 +17,8 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         private const string FixtureDirectory = "Assets/UnityTimelineBuilder/Tests/PrefabIntegrationFixtures";
         private const string AudioAssetPath = FixtureDirectory + "/integration.wav";
         private const string AnimationAssetPath = FixtureDirectory + "/integration.anim";
-        private const string TimelineAssetPath = OutputDirectory + "/PrefabIntegration.playable";
-        private const string PrefabAssetPath = OutputDirectory + "/PrefabIntegration.prefab";
+        private const string TimelineAssetPath = OutputDirectory + "/PrefabIntegration/Timelines/PrefabIntegration.playable";
+        private const string PrefabAssetPath = OutputDirectory + "/PrefabIntegration/Prefabs/PrefabIntegration.prefab";
 
         [SetUp]
         public void SetUp()

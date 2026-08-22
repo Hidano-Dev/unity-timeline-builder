@@ -73,7 +73,7 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             Assert.That(importedClipNames, Does.Contain("Walk"));
             Assert.That(importedClipNames, Does.Contain("Run"));
             var timeline = AssetDatabase.LoadAssetAtPath<TimelineAsset>(
-                OutputDirectory + "/ExternalResourceIntegration.playable");
+                OutputDirectory + "/ExternalResourceIntegration/Timelines/ExternalResourceIntegration.playable");
             Assert.That(timeline, Is.Not.Null);
             var audioTrack = timeline.GetOutputTracks().OfType<AudioTrack>().Single();
             Assert.That(audioTrack.GetClips().Count(), Is.EqualTo(2));
@@ -102,7 +102,7 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             Assert.That(error.SourcePath, Is.EqualTo("external-multiple-clips.fbx"));
             Assert.That(error.Message, Does.Contain("MissingClip"));
             Assert.That(AssetDatabase.LoadAssetAtPath<TimelineAsset>(
-                OutputDirectory + "/ExternalResourceMismatch.playable"), Is.Null);
+                OutputDirectory + "/ExternalResourceMismatch/Timelines/ExternalResourceMismatch.playable"), Is.Null);
         }
 
         private static string FormatErrors(BuildResult result)

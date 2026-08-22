@@ -22,10 +22,10 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         private const string TemplateAnimationPath = "Assets/Animations/character.fbx";
         private const string TemplatePrefabPath = "Assets/Prefabs/Character.prefab";
         private const string OutputDirectory = "Assets/UnityTimelineBuilder/Tests/SceneBuilderIntegrationOutput";
-        private const string TemplateScenePath = OutputDirectory + "/SampleScene.unity";
-        private const string LegacyTimelinePath = OutputDirectory + "/Legacy.playable";
-        private const string LegacyPrefabPath = OutputDirectory + "/Legacy.prefab";
-        private const string LegacyScenePath = OutputDirectory + "/LegacyScene.unity";
+        private const string TemplateScenePath = OutputDirectory + "/SampleScene/Scenes/SampleScene.unity";
+        private const string LegacyTimelinePath = OutputDirectory + "/Legacy/Timelines/Legacy.playable";
+        private const string LegacyPrefabPath = OutputDirectory + "/Legacy/Prefabs/Legacy.prefab";
+        private const string LegacyScenePath = OutputDirectory + "/Legacy/Scenes/LegacyScene.unity";
         private AnimationClip animationFixture;
 
         [SetUp]
@@ -103,7 +103,7 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             var scene = EditorSceneManager.OpenScene(TemplateScenePath, OpenSceneMode.Single);
             var directorObject = scene.GetRootGameObjects().Single(root => root.name == "BundledTemplate");
             var director = directorObject.GetComponent<PlayableDirector>();
-            var timeline = AssetDatabase.LoadAssetAtPath<TimelineAsset>(OutputDirectory + "/BundledTemplate.playable");
+            var timeline = AssetDatabase.LoadAssetAtPath<TimelineAsset>(OutputDirectory + "/SampleScene/Timelines/BundledTemplate.playable");
             var character = scene.GetRootGameObjects().Single(root => root.name == "Character");
 
             Assert.That(director, Is.Not.Null);
@@ -114,6 +114,33 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
                 .Single(track => track.name == "Character");
             Assert.That(director.GetGenericBinding(characterTrack), Is.SameAs(
                 character.GetComponentInChildren<Animator>()));
+        }
+
+        [Test]
+        public void BuildsSceneWhenActiveSceneHasRootObjects()
+        {
+            new GameObject("ExistingRoot");
+            var existingScenePath = FixtureDirectory + "/Existing.unity";
+            EditorSceneManager.SaveScene(
+                UnityEngine.SceneManagement.SceneManager.GetActiveScene(), existingScenePath);
+
+            var result = TimelineBuilder.Build(new BuildRequest
+            {
+                SheetPath = ProjectPath(TemplatePath),
+                OutputDirectory = OutputDirectory,
+                AssetName = "BundledTemplate",
+                ImportDirectory = FixtureDirectory + "/Imported"
+            });
+
+            Assert.That(result.Success, Is.True, FormatErrors(result));
+            Assert.That(result.ScenePath, Is.EqualTo(TemplateScenePath));
+            Assert.That(File.Exists(ProjectPath(TemplateScenePath)), Is.True);
+
+            var scene = EditorSceneManager.OpenScene(TemplateScenePath, OpenSceneMode.Single);
+            var directorObject = scene.GetRootGameObjects().Single(root => root.name == "BundledTemplate");
+            var director = directorObject.GetComponent<PlayableDirector>();
+            Assert.That(director.playableAsset, Is.Not.Null);
+            Assert.That(scene.GetRootGameObjects().Any(root => root.name == "ExistingRoot"), Is.False);
         }
 
         [Test]
@@ -172,7 +199,7 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             Assert.That(result.PrefabPath, Is.Null);
             Assert.That(result.ScenePath, Is.Null);
             Assert.That(result.Errors.Any(error => error.Code == BuildErrorCode.ScenePrefabInvalid), Is.True);
-            Assert.That(AssetDatabase.LoadAssetAtPath<TimelineAsset>(OutputDirectory + "/MissingPrefab.playable"), Is.Null);
+            Assert.That(AssetDatabase.LoadAssetAtPath<TimelineAsset>(OutputDirectory + "/MissingPrefabScene/Timelines/MissingPrefab.playable"), Is.Null);
         }
 
         [Test]
@@ -207,7 +234,7 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             Assert.That(result.TimelineAssetPath, Is.Null);
             Assert.That(result.ScenePath, Is.Null);
             Assert.That(result.Errors.Any(error => error.Code == BuildErrorCode.SceneTimelineNotFound), Is.True);
-            Assert.That(AssetDatabase.LoadAssetAtPath<TimelineAsset>(OutputDirectory + "/MissingTimeline.playable"), Is.Null);
+            Assert.That(AssetDatabase.LoadAssetAtPath<TimelineAsset>(OutputDirectory + "/MissingTimelineScene/Timelines/MissingTimeline.playable"), Is.Null);
         }
 
         private static string ProjectPath(string path)

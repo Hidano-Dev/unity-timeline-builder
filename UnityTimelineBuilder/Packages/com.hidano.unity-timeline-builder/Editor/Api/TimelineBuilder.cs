@@ -3,266 +3,288 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Timeline;
 
 namespace Hidano.UnityTimelineBuilder.Editor
 {
-    /// <summary>CSV/TSV から TimelineAsset と Prefab を構築する公開ファサード。</summary>
     public static class TimelineBuilder
     {
-        private const string DefaultImportDirectory = "Assets/UnityTimelineBuilder/Imported";
-
-        /// <summary>指定された構築要求を実行する。</summary>
         public static BuildResult Build(BuildRequest request)
         {
             ValidateRequest(request);
-
-            var assetName = string.IsNullOrWhiteSpace(request.AssetName)
+            var fallbackAssetName = string.IsNullOrWhiteSpace(request.AssetName)
                 ? Path.GetFileNameWithoutExtension(request.SheetPath)
-                : request.AssetName.Trim();
-            if (string.IsNullOrWhiteSpace(assetName))
+                : BuildSheetParser.NormalizeAssetName(request.AssetName);
+            if (string.IsNullOrWhiteSpace(fallbackAssetName))
                 throw new ArgumentException("Asset name is required.", nameof(request));
 
             EnsureBuiltInResolvers();
-            var timelinePath = CombineAssetPath(request.OutputDirectory, assetName + ".playable");
-            var prefabPath = CombineAssetPath(request.OutputDirectory, assetName + ".prefab");
-            var errors = new List<BuildError>();
-            IReadOnlyList<IReadOnlyList<string>> rawRows;
-
             if (!File.Exists(request.SheetPath))
                 return Failure(new BuildError(BuildErrorCode.SheetNotFound, null, request.SheetPath,
-                    "構築情報ファイルが見つかりません: " + request.SheetPath));
+                    "Sheet file was not found: " + request.SheetPath));
 
-            try
-            {
-                rawRows = new CsvSheetReader().ReadAll(request.SheetPath);
-            }
+            IReadOnlyList<IReadOnlyList<string>> rawRows;
+            try { rawRows = new CsvSheetReader().ReadAll(request.SheetPath); }
             catch (SheetReadException exception)
-            {
-                return Failure(new BuildError(BuildErrorCode.SheetParseError, null, request.SheetPath,
-                    exception.Message));
-            }
+            { return Failure(new BuildError(BuildErrorCode.SheetParseError, null, request.SheetPath, exception.Message)); }
             catch (Exception exception)
-            {
-                return Failure(new BuildError(BuildErrorCode.Unexpected, null, request.SheetPath,
-                    exception.Message));
-            }
+            { return Failure(new BuildError(BuildErrorCode.Unexpected, null, request.SheetPath, exception.Message)); }
 
             ParseOutcome parsed;
             try
             {
-                var parser = new BuildSheetParser(TrackBuilderRegistry.IsKnownTrackType,
-                    message => Debug.LogWarning("[UnityTimelineBuilder] " + message));
-                parsed = parser.Parse(rawRows);
-                errors.AddRange(parsed.Errors);
+                parsed = new BuildSheetParser(TrackBuilderRegistry.IsKnownTrackType,
+                    message => Debug.LogWarning("[UnityTimelineBuilder] " + message)).Parse(rawRows);
             }
             catch (Exception exception)
+            { return Failure(Unexpected(request.SheetPath, exception)); }
+
+            var errors = new List<BuildError>(AnnotateErrors(parsed.Errors, parsed.Groups, request.SheetPath));
+            if (parsed.HasTimelineColumn && !string.IsNullOrWhiteSpace(request.AssetName))
             {
-                errors.Add(Unexpected(request.SheetPath, exception));
+                errors.Add(new BuildError(BuildErrorCode.AssetNameConflict, null, request.SheetPath,
+                    "AssetName cannot be specified when the sheet contains a timeline column: " + request.AssetName.Trim()));
                 return Failure(errors);
             }
 
-            var resolvedRows = new List<ResolvedClipRow>();
-            var context = new ResolveContext(request.ImportDirectory, Path.GetDirectoryName(request.SheetPath));
-            foreach (var row in parsed.Rows)
+            IReadOnlyList<PlannedGroupOutputs> plans;
+            try { plans = new OutputPathPlanner().Plan(parsed.Groups, request.OutputDirectory, fallbackAssetName); }
+            catch (Exception exception)
+            { return Failure(errors.Concat(new[] { Unexpected(request.SheetPath, exception) })); }
+
+            var resolvedByGroup = new List<IReadOnlyList<ResolvedClipRow>>();
+            var sceneValidationByGroup = new List<SceneBuildValidationResult>();
+            var sheetDirectory = Path.GetDirectoryName(request.SheetPath);
+            for (var index = 0; index < parsed.Groups.Count; index++)
+            {
+                var group = parsed.Groups[index];
+                var plan = plans[index];
+                var groupErrors = new List<BuildError>();
+                var resolvedRows = ResolveRows(group.Rows,
+                    kind => CreateResolveContext(request.ImportDirectory, plan.GroupDirectory,
+                        kind, sheetDirectory),
+                    request.SheetPath, groupErrors);
+                resolvedByGroup.Add(resolvedRows);
+
+                SceneBuildValidationResult sceneValidation = null;
+                if (group.ScenePlan != null)
+                {
+                    var validator = new SceneBuildValidator();
+                    if (!validator.TryValidate(group.ScenePlan, group.Rows, plan.TimelineAssetPath,
+                        plan.PrefabPath, plan.ScenePath, out sceneValidation, out var sceneErrors))
+                        groupErrors.AddRange(sceneErrors);
+                }
+                sceneValidationByGroup.Add(sceneValidation);
+                errors.AddRange(AnnotateErrors(groupErrors, new[] { group }, request.SheetPath));
+            }
+
+            // This is the verification gate: all groups have been checked before any asset is written.
+            if (errors.Count > 0)
+                return Failure(errors);
+            if (plans.Count == 0)
+                return Failure(new BuildError(BuildErrorCode.RowValidationError, null, request.SheetPath,
+                    "No build rows were found."));
+
+            var completedOutputs = new List<BuildOutput>();
+            foreach (var plan in plans)
+                foreach (var warning in plan.Warnings)
+                    Debug.LogWarning("[UnityTimelineBuilder] " + warning);
+
+            var sceneSaveConfirmed = Application.isBatchMode;
+            for (var groupIndex = 0; groupIndex < plans.Count; groupIndex++)
+            {
+                var plan = plans[groupIndex];
+                var group = parsed.Groups[groupIndex];
+                var output = new BuildOutput(group.TimelineName, plan.AssetName,
+                    null, null, null, group.ScenePlan != null);
+                try
+                {
+                    EnsureOutputDirectory(plan.GroupDirectory + "/Timelines");
+                    EnsureOutputDirectory(plan.GroupDirectory + "/Prefabs");
+                    if (group.ScenePlan != null)
+                        EnsureOutputDirectory(plan.GroupDirectory + "/Scenes");
+                    var timeline = new TimelineAssetFactory().Create(resolvedByGroup[groupIndex], plan.TimelineAssetPath);
+                    output = new BuildOutput(group.TimelineName, plan.AssetName,
+                        plan.TimelineAssetPath, null, null, group.ScenePlan != null);
+                    new PrefabFactory().Create(timeline, plan.PrefabPath, plan.AssetName);
+                    output = new BuildOutput(group.TimelineName, plan.AssetName,
+                        plan.TimelineAssetPath, plan.PrefabPath, null, group.ScenePlan != null);
+                    AssetDatabase.SaveAssets();
+                    AssetDatabase.ImportAsset(plan.TimelineAssetPath, ImportAssetOptions.ForceSynchronousImport);
+                    AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                    var persistedTimeline = AssetDatabase.LoadAssetAtPath<TimelineAsset>(plan.TimelineAssetPath);
+
+                    if (group.ScenePlan != null)
+                    {
+                        if (!sceneSaveConfirmed)
+                        {
+                            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                            {
+                                var canceled = new BuildError(BuildErrorCode.SceneBuildCanceled,
+                                    group.ScenePlan.Definition.LineNumber, plan.ScenePath,
+                                    "Scene build was canceled because modified scenes were not saved.",
+                                    group.TimelineName);
+                                return new BuildResult(false, completedOutputs.Concat(new[] { output }).ToArray(),
+                                    new[] { canceled });
+                            }
+                            sceneSaveConfirmed = true;
+                        }
+
+                        var sceneValidation = sceneValidationByGroup[groupIndex];
+                        var sceneTimeline = string.IsNullOrWhiteSpace(group.ScenePlan.Definition.TimelineAssetPath)
+                            ? persistedTimeline : sceneValidation.Timeline;
+                        if (sceneTimeline == null)
+                        {
+                            var missing = new BuildError(BuildErrorCode.SceneTimelineNotFound,
+                                group.ScenePlan.Definition.LineNumber, plan.TimelineAssetPath,
+                                "Generated TimelineAsset was not found after creation.", group.TimelineName);
+                            return new BuildResult(false, completedOutputs.Concat(new[] { output }).ToArray(),
+                                new[] { missing });
+                        }
+
+                        var sceneContext = new SceneBuildContext(group.ScenePlan, sceneTimeline,
+                            sceneValidation.PrefabAssets, plan.ScenePath, plan.AssetName,
+                            string.IsNullOrWhiteSpace(group.ScenePlan.Definition.TimelineAssetPath)
+                                ? plan.TimelineAssetPath : group.ScenePlan.Definition.TimelineAssetPath,
+                            plan.PrefabPath);
+                        if (!new SceneFactory().TryCreate(sceneContext, out var createdScenePath, out var sceneErrors))
+                        {
+                            var attributed = sceneErrors.Select(error => WithTimeline(error, group.TimelineName));
+                            return new BuildResult(false, completedOutputs.Concat(new[] { output }).ToArray(),
+                                attributed.ToArray());
+                        }
+                        output = new BuildOutput(group.TimelineName, plan.AssetName,
+                            plan.TimelineAssetPath, plan.PrefabPath, createdScenePath, true);
+                    }
+
+                    completedOutputs.Add(output);
+                }
+                catch (Exception exception)
+                {
+                    var failure = new BuildError(BuildErrorCode.OutputWriteFailed, null,
+                        plan.TimelineAssetPath, exception.Message, group.TimelineName);
+                    return new BuildResult(false, completedOutputs.Concat(new[] { output }).ToArray(),
+                        new[] { failure });
+                }
+            }
+
+            return new BuildResult(true, completedOutputs, Array.Empty<BuildError>());
+        }
+
+        public static BuildResult Build(string sheetPath, string outputDirectory, string assetName = null)
+        {
+            return Build(new BuildRequest { SheetPath = sheetPath, OutputDirectory = outputDirectory,
+                AssetName = assetName });
+        }
+
+        /// <summary>ImportDirectory の明示指定時はそこへ集約し、未指定時はグループフォルダ配下の
+        /// 種別サブフォルダ（AudioClips / Animations）へ取り込む。</summary>
+        private static ResolveContext CreateResolveContext(string importDirectory,
+            string groupDirectory, string resourceKind, string sheetDirectory)
+        {
+            var destination = string.IsNullOrWhiteSpace(importDirectory)
+                ? groupDirectory + "/" + ImportSubfolder(resourceKind)
+                : importDirectory;
+            return new ResolveContext(destination, sheetDirectory);
+        }
+
+        private static string ImportSubfolder(string resourceKind)
+        {
+            switch (resourceKind)
+            {
+                case "Audio": return "AudioClips";
+                case "Animation": return "Animations";
+                default: return resourceKind;
+            }
+        }
+
+        private static List<ResolvedClipRow> ResolveRows(IReadOnlyList<ClipRow> rows,
+            Func<string, ResolveContext> contextForKind, string sourcePath, List<BuildError> errors)
+        {
+            var resolved = new List<ResolvedClipRow>();
+            foreach (var row in rows)
             {
                 try
                 {
                     if (!TrackBuilderRegistry.TryGet(row.TrackType, out var builder))
-                    {
-                        errors.Add(new BuildError(BuildErrorCode.UnknownTrackType, row.LineNumber, null,
-                            "未対応のトラック種別です: " + row.TrackType));
-                        continue;
-                    }
-
+                    { errors.Add(new BuildError(BuildErrorCode.UnknownTrackType, row.LineNumber, null, "Unknown track type: " + row.TrackType)); continue; }
                     if (!ResourceResolverRegistry.TryGet(builder.ResourceKind, out var resolver))
-                    {
-                        errors.Add(new BuildError(BuildErrorCode.ResourceNotFound, row.LineNumber, row.ResourcePath,
-                            "リソースリゾルバが登録されていません: " + builder.ResourceKind));
-                        continue;
-                    }
-
+                    { errors.Add(new BuildError(BuildErrorCode.ResourceNotFound, row.LineNumber, row.ResourcePath, "Resource resolver is not registered: " + builder.ResourceKind)); continue; }
+                    var context = contextForKind(builder.ResourceKind);
                     if (!resolver.TryResolve(row, context, out var asset, out var error))
-                    {
-                        errors.Add(error ?? new BuildError(BuildErrorCode.ResourceNotFound, row.LineNumber,
-                            row.ResourcePath, "リソースを解決できませんでした: " + row.ResourcePath));
-                        continue;
-                    }
-
+                    { errors.Add(error ?? new BuildError(BuildErrorCode.ResourceNotFound, row.LineNumber, row.ResourcePath, "Resource could not be resolved: " + row.ResourcePath)); continue; }
                     if (asset == null || !resolver.AssetType.IsInstanceOfType(asset))
-                    {
-                        errors.Add(new BuildError(BuildErrorCode.ResourceTypeMismatch, row.LineNumber,
-                            row.ResourcePath, "解決されたリソースの型が一致しません: " + row.ResourcePath));
-                        continue;
-                    }
-
-                    resolvedRows.Add(new ResolvedClipRow(row, builder, asset));
+                    { errors.Add(new BuildError(BuildErrorCode.ResourceTypeMismatch, row.LineNumber, row.ResourcePath, "Resolved resource type does not match: " + row.ResourcePath)); continue; }
+                    resolved.Add(new ResolvedClipRow(row, builder, asset));
                 }
-                catch (Exception exception)
-                {
-                    errors.Add(Unexpected(request.SheetPath, exception, row.LineNumber, row.ResourcePath));
-                }
+                catch (Exception exception) { errors.Add(Unexpected(sourcePath, exception, row.LineNumber, row.ResourcePath)); }
             }
-
-            if (errors.Count > 0)
-                return Failure(errors);
-
-            SceneBuildValidationResult sceneValidation = null;
-            if (parsed.ScenePlan != null)
-            {
-                var validator = new SceneBuildValidator();
-                if (!validator.TryValidate(parsed.ScenePlan, parsed.Rows, timelinePath, prefabPath,
-                    request.OutputDirectory, out sceneValidation, out var sceneErrors))
-                {
-                    errors.AddRange(sceneErrors);
-                    return Failure(errors);
-                }
-            }
-
-            try
-            {
-                EnsureOutputDirectory(request.OutputDirectory);
-                var timeline = new TimelineAssetFactory().Create(resolvedRows, timelinePath);
-                new PrefabFactory().Create(timeline, prefabPath, assetName);
-                Debug.Log("[UnityTimelineBuilder] TimelineAsset: " + timelinePath);
-                Debug.Log("[UnityTimelineBuilder] Prefab: " + prefabPath);
-                AssetDatabase.SaveAssets();
-                AssetDatabase.ImportAsset(timelinePath, ImportAssetOptions.ForceSynchronousImport);
-                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-                var persistedTimeline = AssetDatabase.LoadAssetAtPath<TimelineAsset>(timelinePath);
-
-                if (parsed.ScenePlan == null)
-                    return new BuildResult(true, timelinePath, prefabPath, Array.Empty<BuildError>());
-
-                var sceneTimeline = string.IsNullOrWhiteSpace(parsed.ScenePlan.Definition.TimelineAssetPath)
-                    ? persistedTimeline
-                    : sceneValidation.Timeline;
-                if (sceneTimeline == null)
-                {
-                    return Failure(new BuildError(BuildErrorCode.SceneTimelineNotFound,
-                        parsed.ScenePlan.Definition.LineNumber, timelinePath,
-                        "Generated TimelineAsset was not found after creation."), timelinePath, prefabPath);
-                }
-
-                var scenePath = CombineAssetPath(request.OutputDirectory,
-                    parsed.ScenePlan.Definition.SceneName + ".unity");
-                var sceneContext = new SceneBuildContext(parsed.ScenePlan, sceneTimeline,
-                    sceneValidation.PrefabAssets, scenePath, assetName,
-                    string.IsNullOrWhiteSpace(parsed.ScenePlan.Definition.TimelineAssetPath)
-                        ? timelinePath
-                        : parsed.ScenePlan.Definition.TimelineAssetPath);
-                if (!new SceneFactory().TryCreate(sceneContext, out var createdScenePath,
-                    out var sceneErrors))
-                {
-                    Debug.LogError("[UnityTimelineBuilder] Scene build failed; TimelineAsset and Prefab were created, Scene was not.");
-                    return Failure(sceneErrors, timelinePath, prefabPath);
-                }
-
-                Debug.Log("[UnityTimelineBuilder] Scene: " + createdScenePath);
-                return new BuildResult(true, timelinePath, prefabPath, createdScenePath,
-                    Array.Empty<BuildError>());
-            }
-            catch (Exception exception)
-            {
-                return Failure(new BuildError(BuildErrorCode.OutputWriteFailed, null,
-                    timelinePath, exception.Message));
-            }
+            return resolved;
         }
 
-        /// <summary>簡易オーバーロードで構築を実行する。</summary>
-        public static BuildResult Build(string sheetPath, string outputDirectory, string assetName = null)
+        private static BuildError WithTimeline(BuildError error, string timelineName)
         {
-            return Build(new BuildRequest
+            if (error == null) return null;
+            return new BuildError(error.Code, error.LineNumber, error.SourcePath,
+                error.Message, error.TimelineName ?? timelineName);
+        }
+
+        private static IReadOnlyList<BuildError> AnnotateErrors(IEnumerable<BuildError> source,
+            IReadOnlyList<TimelineGroupPlan> groups, string sourcePath)
+        {
+            var result = new List<BuildError>();
+            foreach (var error in source ?? Enumerable.Empty<BuildError>())
             {
-                SheetPath = sheetPath,
-                OutputDirectory = outputDirectory,
-                AssetName = assetName,
-                ImportDirectory = DefaultImportDirectory
-            });
+                if (error == null) continue;
+                var group = groups.FirstOrDefault(candidate => candidate != null &&
+                    (candidate.FirstLineNumber == error.LineNumber || candidate.Rows.Any(row => row.LineNumber == error.LineNumber) ||
+                     (candidate.ScenePlan != null && candidate.ScenePlan.Definition.LineNumber == error.LineNumber) ||
+                     (candidate.ScenePlan != null && candidate.ScenePlan.Prefabs.Any(row => row.LineNumber == error.LineNumber)) ||
+                     (candidate.ScenePlan != null && candidate.ScenePlan.Bindings.Any(row => row.LineNumber == error.LineNumber))));
+                result.Add(new BuildError(error.Code, error.LineNumber, error.SourcePath ?? sourcePath,
+                    error.Message, error.TimelineName ?? (group == null ? null : group.TimelineName)));
+            }
+            return result;
         }
 
         private static void ValidateRequest(BuildRequest request)
         {
-            if (request == null)
-                throw new ArgumentNullException(nameof(request));
-            RequireValue(request.SheetPath, nameof(request.SheetPath));
-            RequireValue(request.OutputDirectory, nameof(request.OutputDirectory));
+            if (request == null) throw new ArgumentNullException(nameof(request));
+            RequireValue(request.SheetPath, nameof(request.SheetPath)); RequireValue(request.OutputDirectory, nameof(request.OutputDirectory));
             ValidateAssetsPath(request.OutputDirectory, nameof(request.OutputDirectory));
-            if (!string.IsNullOrWhiteSpace(request.ImportDirectory))
-                ValidateAssetsPath(request.ImportDirectory, nameof(request.ImportDirectory));
-            else
-                request.ImportDirectory = DefaultImportDirectory;
+            if (!string.IsNullOrWhiteSpace(request.ImportDirectory)) ValidateAssetsPath(request.ImportDirectory, nameof(request.ImportDirectory));
         }
-
-        private static void RequireValue(string value, string name)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-                throw new ArgumentException(name + " is required.", name);
-        }
-
+        private static void RequireValue(string value, string name) { if (string.IsNullOrWhiteSpace(value)) throw new ArgumentException(name + " is required.", name); }
         private static void ValidateAssetsPath(string path, string name)
         {
             var normalized = path.Replace('\\', '/').TrimEnd('/');
-            if (!string.Equals(normalized, "Assets", StringComparison.OrdinalIgnoreCase)
-                && !normalized.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(normalized, "Assets", StringComparison.OrdinalIgnoreCase) && !normalized.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
                 throw new ArgumentException(name + " must be under Assets/.", name);
         }
-
-        private static string CombineAssetPath(string directory, string fileName)
-        {
-            return directory.Replace('\\', '/').TrimEnd('/') + "/" + fileName;
-        }
-
-        /// <summary>AssetDatabase.CreateAsset は親フォルダを作らないため、出力先を事前に用意する。</summary>
         private static void EnsureOutputDirectory(string outputDirectory)
         {
-            var normalized = outputDirectory.Replace('\\', '/').TrimEnd('/');
-            if (AssetDatabase.IsValidFolder(normalized))
-                return;
-
-            var parts = normalized.Split('/');
-            var current = parts[0];
-            for (var i = 1; i < parts.Length; i++)
-            {
-                var next = current + "/" + parts[i];
-                if (!AssetDatabase.IsValidFolder(next)
-                    && string.IsNullOrEmpty(AssetDatabase.CreateFolder(current, parts[i])))
-                    throw new InvalidOperationException("Failed to create output folder: " + next);
-                current = next;
-            }
+            var normalized = outputDirectory.Replace('\\', '/').TrimEnd('/'); if (AssetDatabase.IsValidFolder(normalized)) return;
+            var parts = normalized.Split('/'); var current = parts[0];
+            for (var i = 1; i < parts.Length; i++) { var next = current + "/" + parts[i]; if (!AssetDatabase.IsValidFolder(next) && string.IsNullOrEmpty(AssetDatabase.CreateFolder(current, parts[i]))) throw new InvalidOperationException("Failed to create output folder: " + next); current = next; }
         }
-
         private static void EnsureBuiltInResolvers()
         {
-            if (!ResourceResolverRegistry.TryGet("Audio", out _))
-                ResourceResolverRegistry.Register(new AudioClipResolver());
-            if (!ResourceResolverRegistry.TryGet("Animation", out _))
-                ResourceResolverRegistry.Register(new AnimationClipResolver());
+            if (!ResourceResolverRegistry.TryGet("Audio", out _)) ResourceResolverRegistry.Register(new AudioClipResolver());
+            if (!ResourceResolverRegistry.TryGet("Animation", out _)) ResourceResolverRegistry.Register(new AnimationClipResolver());
         }
-
         private static BuildResult Failure(BuildError error) => Failure(new[] { error });
-
-        private static BuildResult Failure(BuildError error, string timelinePath, string prefabPath)
-            => Failure(new[] { error }, timelinePath, prefabPath);
-
-        private static BuildResult Failure(IEnumerable<BuildError> errors)
-            => Failure(errors, null, null);
-
+        private static BuildResult Failure(BuildError error, string timelinePath, string prefabPath) => Failure(new[] { error }, timelinePath, prefabPath);
+        private static BuildResult Failure(IEnumerable<BuildError> errors) => Failure(errors, null, null);
         private static BuildResult Failure(IEnumerable<BuildError> errors, string timelinePath, string prefabPath)
         {
-            var list = errors.Where(error => error != null).ToList();
-            foreach (var error in list)
-                Debug.LogError("[UnityTimelineBuilder] " + error.Code + ": " + error.Message);
+            var list = errors.Where(error => error != null).ToList(); foreach (var error in list) Debug.LogError("[UnityTimelineBuilder] " + error.Code + ": " + error.Message);
             return new BuildResult(false, timelinePath, prefabPath, null, list);
         }
-
-        private static BuildError Unexpected(string sourcePath, Exception exception, int? lineNumber = null,
-            string resourcePath = null)
+        private static BuildError Unexpected(string sourcePath, Exception exception, int? lineNumber = null, string resourcePath = null)
         {
-            Debug.LogException(exception);
-            return new BuildError(BuildErrorCode.Unexpected, lineNumber, resourcePath ?? sourcePath,
-                "予期しないエラーが発生しました: " + exception.Message);
+            Debug.LogException(exception); return new BuildError(BuildErrorCode.Unexpected, lineNumber, resourcePath ?? sourcePath, "Unexpected error: " + exception.Message);
         }
     }
 }
