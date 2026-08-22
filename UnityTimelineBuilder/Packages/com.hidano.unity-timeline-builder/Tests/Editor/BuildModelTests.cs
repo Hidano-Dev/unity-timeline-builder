@@ -129,5 +129,37 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             Assert.That(plan.Bindings[0].TrackName, Is.EqualTo("TrackA"));
             Assert.That(plan.Bindings[1].TrackName, Is.EqualTo("TrackB"));
         }
+
+        [Test]
+        public void TimelineGroupPlanCopiesRowsAndPreservesItsImmutableState()
+        {
+            var rows = new List<ClipRow>
+            {
+                new ClipRow(4, "Audio", "Music", "intro", 0, 0, 2, "intro.wav"),
+                new ClipRow(8, "Audio", "Music", "outro", 2, 0, 1, "outro.wav")
+            };
+            var scenePlan = new SceneBuildPlan(null, new ScenePrefabRow[0], new SceneBindRow[0]);
+            var plan = new TimelineGroupPlan("  Main  ", 4, rows, scenePlan);
+
+            rows.Clear();
+
+            Assert.That(plan.TimelineName, Is.EqualTo("  Main  "));
+            Assert.That(plan.FirstLineNumber, Is.EqualTo(4));
+            Assert.That(plan.Rows, Has.Count.EqualTo(2));
+            Assert.That(plan.Rows[0].LineNumber, Is.EqualTo(4));
+            Assert.That(plan.Rows[1].LineNumber, Is.EqualTo(8));
+            Assert.That(plan.ScenePlan, Is.SameAs(scenePlan));
+        }
+
+        [Test]
+        public void TimelineGroupPlanAllowsLegacyGroupWithoutTimelineOrScene()
+        {
+            var plan = new TimelineGroupPlan(null, 2, new ClipRow[0], null);
+
+            Assert.That(plan.TimelineName, Is.Null);
+            Assert.That(plan.FirstLineNumber, Is.EqualTo(2));
+            Assert.That(plan.Rows, Is.Empty);
+            Assert.That(plan.ScenePlan, Is.Null);
+        }
     }
 }
