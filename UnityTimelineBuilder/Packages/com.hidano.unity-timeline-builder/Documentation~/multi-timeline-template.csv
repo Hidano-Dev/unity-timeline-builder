@@ -1,0 +1,8 @@
+trackType,trackName,clipName,startTime,clipIn,duration,resourcePath,timeline
+Audio,BGM,intro,0,0,3.2,Assets/Audio/intro.wav,Opening
+Animation,Character,intro,0.5,0,2.5,Assets/Animations/character.fbx,Opening
+Audio,BGM,intro,0,0,3.2,Assets/Audio/intro.wav,Battle
+Scene,OpeningScene,,,,,,Opening
+ScenePrefab,,,,,,Assets/Prefabs/Character.prefab,Opening
+SceneBind,Character,,,,,CharacterRoot,Opening
+Animation,Character,intro,1,0,2.5,Assets/Animations/character.fbx,Battle
