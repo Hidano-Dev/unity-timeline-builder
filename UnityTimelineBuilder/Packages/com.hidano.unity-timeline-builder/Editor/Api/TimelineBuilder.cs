@@ -106,8 +106,6 @@ namespace Hidano.UnityTimelineBuilder.Editor
                     new PrefabFactory().Create(timeline, plan.PrefabPath, plan.AssetName);
                     output = new BuildOutput(group.TimelineName, plan.AssetName,
                         plan.TimelineAssetPath, plan.PrefabPath, null, group.ScenePlan != null);
-                    Debug.Log("[UnityTimelineBuilder] TimelineAsset: " + plan.TimelineAssetPath);
-                    Debug.Log("[UnityTimelineBuilder] Prefab: " + plan.PrefabPath);
                     AssetDatabase.SaveAssets();
                     AssetDatabase.ImportAsset(plan.TimelineAssetPath, ImportAssetOptions.ForceSynchronousImport);
                     AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
@@ -154,7 +152,6 @@ namespace Hidano.UnityTimelineBuilder.Editor
                         }
                         output = new BuildOutput(group.TimelineName, plan.AssetName,
                             plan.TimelineAssetPath, plan.PrefabPath, createdScenePath, true);
-                        Debug.Log("[UnityTimelineBuilder] Scene: " + createdScenePath);
                     }
 
                     completedOutputs.Add(output);

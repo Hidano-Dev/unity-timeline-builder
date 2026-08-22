@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.RegularExpressions;
 using NUnit.Framework;
 using UnityEngine;
@@ -47,6 +48,19 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
                 });
 
             Assert.That(exitCode, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void FormatErrorReportsTimelineNameWhenPresent()
+        {
+            var error = new BuildError(BuildErrorCode.RowValidationError, 5, "sheet.csv",
+                "Invalid row", "Title");
+            var formatError = typeof(Hidano.UnityTimelineBuilder.Editor.TimelineBuilderCli)
+                .GetMethod("FormatError", BindingFlags.NonPublic | BindingFlags.Static)
+                .Invoke(null, new object[] { error });
+
+            Assert.That(formatError, Is.EqualTo(
+                "RowValidationError (行 5) [sheet.csv] [timeline: Title]: Invalid row"));
         }
 
         private static void ExpectError(string pattern)

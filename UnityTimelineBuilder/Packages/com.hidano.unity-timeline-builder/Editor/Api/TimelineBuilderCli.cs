@@ -46,10 +46,17 @@ namespace Hidano.UnityTimelineBuilder.Editor
                     return BuildFailureExitCode;
                 }
 
-                Debug.Log("[UnityTimelineBuilder] TimelineAsset: " + result.TimelineAssetPath);
-                Debug.Log("[UnityTimelineBuilder] Prefab: " + result.PrefabPath);
-                if (!string.IsNullOrWhiteSpace(result.ScenePath))
-                    Debug.Log("[UnityTimelineBuilder] Scene: " + result.ScenePath);
+                foreach (var output in result.Outputs)
+                {
+                    if (output == null)
+                        continue;
+                    if (!string.IsNullOrWhiteSpace(output.TimelineAssetPath))
+                        Debug.Log("[UnityTimelineBuilder] TimelineAsset: " + output.TimelineAssetPath);
+                    if (!string.IsNullOrWhiteSpace(output.PrefabPath))
+                        Debug.Log("[UnityTimelineBuilder] Prefab: " + output.PrefabPath);
+                    if (!string.IsNullOrWhiteSpace(output.ScenePath))
+                        Debug.Log("[UnityTimelineBuilder] Scene: " + output.ScenePath);
+                }
                 return SuccessExitCode;
             }
             catch (ArgumentException exception)
@@ -121,7 +128,10 @@ namespace Hidano.UnityTimelineBuilder.Editor
         {
             var line = error.LineNumber.HasValue ? " (行 " + error.LineNumber.Value + ")" : string.Empty;
             var path = string.IsNullOrWhiteSpace(error.SourcePath) ? string.Empty : " [" + error.SourcePath + "]";
-            return error.Code + line + path + ": " + error.Message;
+            var timeline = string.IsNullOrWhiteSpace(error.TimelineName)
+                ? string.Empty
+                : " [timeline: " + error.TimelineName + "]";
+            return error.Code + line + path + timeline + ": " + error.Message;
         }
 
         private static void LogError(string message)
