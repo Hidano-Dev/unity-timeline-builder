@@ -65,8 +65,8 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
 
             Assert.That(result.Success, Is.True, FormatErrors(result));
             Assert.That(result.Errors, Is.Empty);
-            Assert.That(result.TimelineAssetPath, Is.EqualTo(OutputDirectory + "/LegacyAsset.playable"));
-            Assert.That(result.PrefabPath, Is.EqualTo(OutputDirectory + "/LegacyAsset.prefab"));
+            Assert.That(result.TimelineAssetPath, Is.EqualTo(OutputDirectory + "/LegacyAsset/Timelines/LegacyAsset.playable"));
+            Assert.That(result.PrefabPath, Is.EqualTo(OutputDirectory + "/LegacyAsset/Prefabs/LegacyAsset.prefab"));
             Assert.That(result.ScenePath, Is.Null);
             Assert.That(result.Outputs, Has.Count.EqualTo(1));
             Assert.That(result.Outputs[0].TimelineName, Is.Null);
@@ -88,9 +88,9 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             var result = Build("LegacySceneAsset");
 
             Assert.That(result.Success, Is.True, FormatErrors(result));
-            Assert.That(result.TimelineAssetPath, Is.EqualTo(OutputDirectory + "/LegacySceneAsset.playable"));
-            Assert.That(result.PrefabPath, Is.EqualTo(OutputDirectory + "/LegacySceneAsset.prefab"));
-            Assert.That(result.ScenePath, Is.EqualTo(OutputDirectory + "/LegacyScene.unity"));
+            Assert.That(result.TimelineAssetPath, Is.EqualTo(OutputDirectory + "/LegacyScene/Timelines/LegacySceneAsset.playable"));
+            Assert.That(result.PrefabPath, Is.EqualTo(OutputDirectory + "/LegacyScene/Prefabs/LegacySceneAsset.prefab"));
+            Assert.That(result.ScenePath, Is.EqualTo(OutputDirectory + "/LegacyScene/Scenes/LegacyScene.unity"));
             Assert.That(result.Outputs.Single().HasScenePlan, Is.True);
 
             var scene = EditorSceneManager.OpenScene(result.ScenePath, OpenSceneMode.Single);
@@ -119,9 +119,9 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             Assert.That(result.Errors[0].Message, Does.Contain("ExplicitAssetName"));
             Assert.That(result.Outputs, Is.Empty);
             Assert.That(AssetDatabase.LoadAssetAtPath<TimelineAsset>(
-                OutputDirectory + "/ExplicitAssetName.playable"), Is.Null);
+                OutputDirectory + "/ExplicitAssetName/Timelines/ExplicitAssetName.playable"), Is.Null);
             Assert.That(AssetDatabase.LoadAssetAtPath<GameObject>(
-                OutputDirectory + "/ExplicitAssetName.prefab"), Is.Null);
+                OutputDirectory + "/ExplicitAssetName/Prefabs/ExplicitAssetName.prefab"), Is.Null);
         }
 
         [Test]
@@ -136,11 +136,11 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             var result = Build("LegacyFailure");
 
             Assert.That(result.Success, Is.False);
-            Assert.That(result.TimelineAssetPath, Is.EqualTo(OutputDirectory + "/LegacyFailure.playable"));
-            Assert.That(result.PrefabPath, Is.EqualTo(OutputDirectory + "/LegacyFailure.prefab"));
+            Assert.That(result.TimelineAssetPath, Is.EqualTo(OutputDirectory + "/LegacyScene/Timelines/LegacyFailure.playable"));
+            Assert.That(result.PrefabPath, Is.EqualTo(OutputDirectory + "/LegacyScene/Prefabs/LegacyFailure.prefab"));
             Assert.That(result.ScenePath, Is.Null);
             Assert.That(result.Errors.Any(error => error.Code == BuildErrorCode.BindTargetNotFound), Is.True);
-            Assert.That(File.Exists(ProjectPath(OutputDirectory + "/LegacyFailure.unity")), Is.False);
+            Assert.That(File.Exists(ProjectPath(OutputDirectory + "/LegacyScene/Scenes/LegacyScene.unity")), Is.False);
         }
 
         private BuildResult Build(string assetName)

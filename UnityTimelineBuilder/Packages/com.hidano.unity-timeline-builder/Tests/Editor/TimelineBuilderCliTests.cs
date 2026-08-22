@@ -65,12 +65,12 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
                 "ScenePrefab,,,,,," + PrefabPath + ",Battle\n" +
                 "SceneBind,Character,,,,,CharacterRoot,Battle\n");
 
-            ExpectLog(".*TimelineAsset: " + OutputDirectory + "/Opening\\.playable");
-            ExpectLog(".*Prefab: " + OutputDirectory + "/Opening\\.prefab");
-            ExpectLog(".*Scene: " + OutputDirectory + "/OpeningScene\\.unity");
-            ExpectLog(".*TimelineAsset: " + OutputDirectory + "/Battle\\.playable");
-            ExpectLog(".*Prefab: " + OutputDirectory + "/Battle\\.prefab");
-            ExpectLog(".*Scene: " + OutputDirectory + "/BattleScene\\.unity");
+            ExpectLog(".*TimelineAsset: " + OutputDirectory + "/OpeningScene/Timelines/Opening\\.playable");
+            ExpectLog(".*Prefab: " + OutputDirectory + "/OpeningScene/Prefabs/Opening\\.prefab");
+            ExpectLog(".*Scene: " + OutputDirectory + "/OpeningScene/Scenes/OpeningScene\\.unity");
+            ExpectLog(".*TimelineAsset: " + OutputDirectory + "/BattleScene/Timelines/Battle\\.playable");
+            ExpectLog(".*Prefab: " + OutputDirectory + "/BattleScene/Prefabs/Battle\\.prefab");
+            ExpectLog(".*Scene: " + OutputDirectory + "/BattleScene/Scenes/BattleScene\\.unity");
 
             var exitCode = RunCli(SheetPath);
 
@@ -114,8 +114,8 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             WriteSheet(
                 "Animation,Character,Walk,0,0,1," + AnimationPath + "\n");
 
-            ExpectLog(".*TimelineAsset: " + OutputDirectory + "/LegacyAsset\\.playable");
-            ExpectLog(".*Prefab: " + OutputDirectory + "/LegacyAsset\\.prefab");
+            ExpectLog(".*TimelineAsset: " + OutputDirectory + "/LegacyAsset/Timelines/LegacyAsset\\.playable");
+            ExpectLog(".*Prefab: " + OutputDirectory + "/LegacyAsset/Prefabs/LegacyAsset\\.prefab");
 
             var exitCode = RunCli(SheetPath, "LegacyAsset");
 

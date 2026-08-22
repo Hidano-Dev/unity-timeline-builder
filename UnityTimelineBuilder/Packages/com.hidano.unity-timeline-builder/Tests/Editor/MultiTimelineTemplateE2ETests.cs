@@ -91,11 +91,11 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
 
             var opening = result.Outputs.Single(output => output.TimelineName == "Opening");
             var battle = result.Outputs.Single(output => output.TimelineName == "Battle");
-            Assert.That(opening.TimelineAssetPath, Is.EqualTo(OutputDirectory + "/Opening.playable"));
-            Assert.That(opening.PrefabPath, Is.EqualTo(OutputDirectory + "/Opening.prefab"));
-            Assert.That(opening.ScenePath, Is.EqualTo(OutputDirectory + "/OpeningScene.unity"));
-            Assert.That(battle.TimelineAssetPath, Is.EqualTo(OutputDirectory + "/Battle.playable"));
-            Assert.That(battle.PrefabPath, Is.EqualTo(OutputDirectory + "/Battle.prefab"));
+            Assert.That(opening.TimelineAssetPath, Is.EqualTo(OutputDirectory + "/OpeningScene/Timelines/Opening.playable"));
+            Assert.That(opening.PrefabPath, Is.EqualTo(OutputDirectory + "/OpeningScene/Prefabs/Opening.prefab"));
+            Assert.That(opening.ScenePath, Is.EqualTo(OutputDirectory + "/OpeningScene/Scenes/OpeningScene.unity"));
+            Assert.That(battle.TimelineAssetPath, Is.EqualTo(OutputDirectory + "/Battle/Timelines/Battle.playable"));
+            Assert.That(battle.PrefabPath, Is.EqualTo(OutputDirectory + "/Battle/Prefabs/Battle.prefab"));
             Assert.That(battle.ScenePath, Is.Null);
 
             AssertTimeline(opening.TimelineAssetPath, "Opening", 0.5);

@@ -22,9 +22,9 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         private const string CharacterPrefabPath = FixtureDirectory + "/Character.prefab";
         private const string PropPrefabPath = FixtureDirectory + "/Prop.prefab";
         private const string AvatarPath = FixtureDirectory + "/GenericAvatar.asset";
-        private const string TimelinePath = OutputDirectory + "/SceneFactory.playable";
-        private const string PrefabPath = OutputDirectory + "/SceneFactory.prefab";
-        private const string ScenePath = OutputDirectory + "/SceneFactory.unity";
+        private const string TimelinePath = OutputDirectory + "/SceneFactory/Timelines/SceneFactory.playable";
+        private const string PrefabPath = OutputDirectory + "/SceneFactory/Prefabs/SceneFactory.prefab";
+        private const string ScenePath = OutputDirectory + "/SceneFactory/Scenes/SceneFactory.unity";
 
         [SetUp]
         public void SetUp()

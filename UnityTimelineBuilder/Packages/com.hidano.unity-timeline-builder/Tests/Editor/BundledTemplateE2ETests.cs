@@ -20,8 +20,8 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
         private const string PrefabDirectory = "Assets/Prefabs";
         private const string ScenePrefabPath = PrefabDirectory + "/Character.prefab";
         private const string OutputDirectory = "Assets/UnityTimelineBuilder/Tests/TemplateE2EOutput";
-        private const string TimelinePath = OutputDirectory + "/BundledTemplate.playable";
-        private const string PrefabPath = OutputDirectory + "/BundledTemplate.prefab";
+        private const string TimelinePath = OutputDirectory + "/SampleScene/Timelines/BundledTemplate.playable";
+        private const string PrefabPath = OutputDirectory + "/SampleScene/Prefabs/BundledTemplate.prefab";
         private AnimationClip animationFixture;
         private bool audioDirectoryExisted;
 

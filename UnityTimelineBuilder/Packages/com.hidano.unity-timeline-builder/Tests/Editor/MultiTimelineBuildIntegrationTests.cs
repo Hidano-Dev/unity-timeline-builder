@@ -85,18 +85,18 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
                 { output.TimelineAssetPath, output.PrefabPath, output.ScenePath }),
                 Is.EqualTo(new[]
                 {
-                    OutputDirectory + "/Opening.playable",
-                    OutputDirectory + "/Opening.prefab",
-                    OutputDirectory + "/OpeningScene.unity",
-                    OutputDirectory + "/Battle.playable",
-                    OutputDirectory + "/Battle.prefab",
-                    OutputDirectory + "/BattleScene.unity"
+                    OutputDirectory + "/OpeningScene/Timelines/Opening.playable",
+                    OutputDirectory + "/OpeningScene/Prefabs/Opening.prefab",
+                    OutputDirectory + "/OpeningScene/Scenes/OpeningScene.unity",
+                    OutputDirectory + "/BattleScene/Timelines/Battle.playable",
+                    OutputDirectory + "/BattleScene/Prefabs/Battle.prefab",
+                    OutputDirectory + "/BattleScene/Scenes/BattleScene.unity"
                 }));
 
             var openingTimeline = AssetDatabase.LoadAssetAtPath<TimelineAsset>(
-                OutputDirectory + "/Opening.playable");
+                OutputDirectory + "/OpeningScene/Timelines/Opening.playable");
             var battleTimeline = AssetDatabase.LoadAssetAtPath<TimelineAsset>(
-                OutputDirectory + "/Battle.playable");
+                OutputDirectory + "/BattleScene/Timelines/Battle.playable");
             Assert.That(openingTimeline.GetOutputTracks(), Has.Length.EqualTo(1));
             Assert.That(battleTimeline.GetOutputTracks(), Has.Length.EqualTo(1));
             Assert.That(openingTimeline.GetOutputTracks().Single().name, Is.EqualTo("Character"));
@@ -106,10 +106,10 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             Assert.That(battleTimeline.GetOutputTracks().Single().GetClips().Single().displayName,
                 Is.EqualTo("BattleClip"));
 
-            AssertSceneReferencesTimeline(OutputDirectory + "/OpeningScene.unity",
-                OutputDirectory + "/Opening.playable");
-            AssertSceneReferencesTimeline(OutputDirectory + "/BattleScene.unity",
-                OutputDirectory + "/Battle.playable");
+            AssertSceneReferencesTimeline(OutputDirectory + "/OpeningScene/Scenes/OpeningScene.unity",
+                OutputDirectory + "/OpeningScene/Timelines/Opening.playable");
+            AssertSceneReferencesTimeline(OutputDirectory + "/BattleScene/Scenes/BattleScene.unity",
+                OutputDirectory + "/BattleScene/Timelines/Battle.playable");
         }
 
         private static void AssertSceneReferencesTimeline(string scenePath, string expectedTimelinePath)

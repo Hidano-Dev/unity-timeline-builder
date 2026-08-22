@@ -69,9 +69,7 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
                 "SceneBind,mainTrack,,,,,CharacterRoot,main\n");
 
             LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex(
-                ".*output renamed.*main \\(1\\).*"));
-            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex(
-                ".*output renamed.*shot \\(1\\).*"));
+                ".*shot.*\\(1\\).*"));
 
             var result = TimelineBuilder.Build(new BuildRequest
             {
@@ -83,14 +81,14 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             Assert.That(result.Success, Is.True, FormatErrors(result));
             Assert.That(result.Outputs.Select(output => output.TimelineAssetPath), Is.EqualTo(new[]
             {
-                OutputDirectory + "/Main.playable",
-                OutputDirectory + "/main (1).playable"
+                OutputDirectory + "/Shot/Timelines/Main.playable",
+                OutputDirectory + "/shot (1)/Timelines/main.playable"
             }));
-            Assert.That(result.Outputs[1].PrefabPath, Is.EqualTo(OutputDirectory + "/main (1).prefab"));
-            Assert.That(result.Outputs[1].ScenePath, Is.EqualTo(OutputDirectory + "/shot (1).unity"));
+            Assert.That(result.Outputs[1].PrefabPath, Is.EqualTo(OutputDirectory + "/shot (1)/Prefabs/main.prefab"));
+            Assert.That(result.Outputs[1].ScenePath, Is.EqualTo(OutputDirectory + "/shot (1)/Scenes/shot (1).unity"));
 
-            AssertSceneReferencesTimeline(OutputDirectory + "/shot (1).unity",
-                OutputDirectory + "/main (1).playable");
+            AssertSceneReferencesTimeline(OutputDirectory + "/shot (1)/Scenes/shot (1).unity",
+                OutputDirectory + "/shot (1)/Timelines/main.playable");
         }
 
         [Test]
@@ -99,7 +97,7 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             WriteSheet(
                 "Animation,Track,FirstClip,0,0,1," + AnimationPath + ",Main\n" +
                 "Animation,Track,SecondClip,0,0,1," + AnimationPath + ",main\n");
-            EnsureFolder(OutputDirectory + "/main (1).playable");
+            EnsureFolder(OutputDirectory + "/main (1)/Timelines/main (1).playable");
 
             LogAssert.ignoreFailingMessages = true;
             BuildResult result;
@@ -119,11 +117,11 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
 
             Assert.That(result.Success, Is.False);
             Assert.That(result.Outputs, Has.Count.EqualTo(2));
-            Assert.That(result.Outputs[0].TimelineAssetPath, Is.EqualTo(OutputDirectory + "/Main.playable"));
+            Assert.That(result.Outputs[0].TimelineAssetPath, Is.EqualTo(OutputDirectory + "/Main/Timelines/Main.playable"));
             Assert.That(result.Outputs[1].TimelineAssetPath, Is.Null);
             Assert.That(result.Outputs[1].PrefabPath, Is.Null);
             Assert.That(result.Errors.Single().TimelineName, Is.EqualTo("main"));
-            Assert.That(AssetDatabase.LoadAssetAtPath<TimelineAsset>(OutputDirectory + "/Main.playable"), Is.Not.Null);
+            Assert.That(AssetDatabase.LoadAssetAtPath<TimelineAsset>(OutputDirectory + "/Main/Timelines/Main.playable"), Is.Not.Null);
         }
 
         [Test]
@@ -157,8 +155,8 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             Assert.That(result.Errors, Has.Count.EqualTo(2));
             Assert.That(result.Errors.Select(error => error.TimelineName), Is.EquivalentTo(new[] { "Main", "Battle" }));
             Assert.That(result.Outputs, Is.Empty);
-            Assert.That(AssetDatabase.LoadAssetAtPath<TimelineAsset>(OutputDirectory + "/Main.playable"), Is.Null);
-            Assert.That(AssetDatabase.LoadAssetAtPath<TimelineAsset>(OutputDirectory + "/Battle.playable"), Is.Null);
+            Assert.That(AssetDatabase.LoadAssetAtPath<TimelineAsset>(OutputDirectory + "/FirstScene/Timelines/Main.playable"), Is.Null);
+            Assert.That(AssetDatabase.LoadAssetAtPath<TimelineAsset>(OutputDirectory + "/SecondScene/Timelines/Battle.playable"), Is.Null);
         }
 
         private void WriteSheet(string rows)
