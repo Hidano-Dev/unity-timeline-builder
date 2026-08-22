@@ -333,5 +333,63 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             Assert.That(outcome.Errors[0].Message, Does.Contain("Bad/Timeline"));
             Assert.That(outcome.Errors[1].Message, Does.Contain("."));
         }
+
+        [Test]
+        public void AllowsOneScenePerTimelineGroupAndScopesBindingDuplicatesToEachGroup()
+        {
+            var rows = new List<IReadOnlyList<string>>
+            {
+                new[] { "trackType", "trackName", "clipName", "startTime", "clipIn", "duration", "resourcePath", "timeline" },
+                new[] { "Scene", "FirstScene", "", "", "", "", "", "First" },
+                new[] { "SceneBind", "Walk", "", "", "", "", "HeroA", "First" },
+                new[] { "Scene", "SecondScene", "", "", "", "", "", "Second" },
+                new[] { "SceneBind", "Walk", "", "", "", "", "HeroB", "Second" }
+            };
+
+            var outcome = CreateParser().Parse(rows);
+
+            Assert.That(outcome.Errors, Is.Empty);
+            Assert.That(outcome.Groups, Has.Count.EqualTo(2));
+            Assert.That(outcome.Groups[0].ScenePlan.Definition.SceneName, Is.EqualTo("FirstScene"));
+            Assert.That(outcome.Groups[1].ScenePlan.Definition.SceneName, Is.EqualTo("SecondScene"));
+            Assert.That(outcome.Groups[0].ScenePlan.Bindings[0].TrackName, Is.EqualTo("Walk"));
+            Assert.That(outcome.Groups[1].ScenePlan.Bindings[0].TrackName, Is.EqualTo("Walk"));
+        }
+
+        [Test]
+        public void RejectsMoreThanOneSceneWithinTheSameTimelineGroup()
+        {
+            var rows = new List<IReadOnlyList<string>>
+            {
+                new[] { "trackType", "trackName", "clipName", "startTime", "clipIn", "duration", "resourcePath", "timeline" },
+                new[] { "Scene", "FirstScene", "", "", "", "", "", "First" },
+                new[] { "Scene", "DuplicateScene", "", "", "", "", "", "First" },
+                new[] { "Scene", "SecondScene", "", "", "", "", "", "Second" }
+            };
+
+            var outcome = CreateParser().Parse(rows);
+
+            Assert.That(outcome.Errors, Has.Count.EqualTo(1));
+            Assert.That(outcome.Errors[0].LineNumber, Is.EqualTo(3));
+            Assert.That(outcome.Errors[0].Message, Does.Contain("同一 Timeline グループ内"));
+        }
+
+        [Test]
+        public void RejectsSceneRelatedRowsWithoutASceneWithinTheirTimelineGroup()
+        {
+            var rows = new List<IReadOnlyList<string>>
+            {
+                new[] { "trackType", "trackName", "clipName", "startTime", "clipIn", "duration", "resourcePath", "timeline" },
+                new[] { "Scene", "FirstScene", "", "", "", "", "", "First" },
+                new[] { "ScenePrefab", "", "", "", "", "", "Assets/Hero.prefab", "Second" },
+                new[] { "SceneBind", "Walk", "", "", "", "", "Hero", "Second" }
+            };
+
+            var outcome = CreateParser().Parse(rows);
+
+            Assert.That(outcome.Errors.Select(error => error.LineNumber),
+                Is.EquivalentTo(new int?[] { 3, 4 }));
+            Assert.That(outcome.Errors.All(error => error.Message.Contains("Scene 行が必要です")), Is.True);
+        }
     }
 }

@@ -107,12 +107,6 @@ namespace Hidano.UnityTimelineBuilder.Editor
                     }
                     group = legacyGroup;
                 }
-                else if (!groupsByName.TryGetValue(timelineName, out group))
-                {
-                    group = new GroupBuilder(timelineName, lineNumber);
-                    groupsByName.Add(timelineName, group);
-                    groupBuilders.Add(group);
-                }
                 if (TryGetValue(fields, columnIndexes, "trackType", out var trackType) &&
                     IsSceneRowType(trackType))
                 {
@@ -155,7 +149,7 @@ namespace Hidano.UnityTimelineBuilder.Editor
 
                     if (definition != null)
                     {
-                        AddRangeError(lineNumber, "Scene 行は 1 シートに 1 行のみ指定できます。", errors);
+                        AddRangeError(lineNumber, "同一 Timeline グループ内の Scene 行は 1 行のみ指定できます。", errors);
                         break;
                     }
 
