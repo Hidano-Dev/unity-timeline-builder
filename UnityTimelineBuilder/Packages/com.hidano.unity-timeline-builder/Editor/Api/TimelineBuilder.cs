@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Timeline;
 
@@ -84,46 +85,90 @@ namespace Hidano.UnityTimelineBuilder.Editor
                 return Failure(new BuildError(BuildErrorCode.RowValidationError, null, request.SheetPath,
                     "No build rows were found."));
 
-            // Generation remains the single-group pipeline owned by task 4.3; this task only changes its preflight.
-            var firstPlan = plans[0];
-            var firstGroup = parsed.Groups[0];
-            var timelinePath = firstPlan.TimelineAssetPath;
-            var prefabPath = firstPlan.PrefabPath;
-            try
+            var completedOutputs = new List<BuildOutput>();
+            foreach (var plan in plans)
+                foreach (var warning in plan.Warnings)
+                    Debug.LogWarning("[UnityTimelineBuilder] " + warning);
+
+            var sceneSaveConfirmed = Application.isBatchMode;
+            for (var groupIndex = 0; groupIndex < plans.Count; groupIndex++)
             {
-                EnsureOutputDirectory(request.OutputDirectory);
-                var timeline = new TimelineAssetFactory().Create(resolvedByGroup[0], timelinePath);
-                new PrefabFactory().Create(timeline, prefabPath, firstPlan.AssetName);
-                Debug.Log("[UnityTimelineBuilder] TimelineAsset: " + timelinePath);
-                Debug.Log("[UnityTimelineBuilder] Prefab: " + prefabPath);
-                AssetDatabase.SaveAssets();
-                AssetDatabase.ImportAsset(timelinePath, ImportAssetOptions.ForceSynchronousImport);
-                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-                var persistedTimeline = AssetDatabase.LoadAssetAtPath<TimelineAsset>(timelinePath);
+                var plan = plans[groupIndex];
+                var group = parsed.Groups[groupIndex];
+                var output = new BuildOutput(group.TimelineName, plan.AssetName,
+                    null, null, null, group.ScenePlan != null);
+                try
+                {
+                    EnsureOutputDirectory(request.OutputDirectory);
+                    var timeline = new TimelineAssetFactory().Create(resolvedByGroup[groupIndex], plan.TimelineAssetPath);
+                    output = new BuildOutput(group.TimelineName, plan.AssetName,
+                        plan.TimelineAssetPath, null, null, group.ScenePlan != null);
+                    new PrefabFactory().Create(timeline, plan.PrefabPath, plan.AssetName);
+                    output = new BuildOutput(group.TimelineName, plan.AssetName,
+                        plan.TimelineAssetPath, plan.PrefabPath, null, group.ScenePlan != null);
+                    Debug.Log("[UnityTimelineBuilder] TimelineAsset: " + plan.TimelineAssetPath);
+                    Debug.Log("[UnityTimelineBuilder] Prefab: " + plan.PrefabPath);
+                    AssetDatabase.SaveAssets();
+                    AssetDatabase.ImportAsset(plan.TimelineAssetPath, ImportAssetOptions.ForceSynchronousImport);
+                    AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                    var persistedTimeline = AssetDatabase.LoadAssetAtPath<TimelineAsset>(plan.TimelineAssetPath);
 
-                if (firstGroup.ScenePlan == null)
-                    return new BuildResult(true, timelinePath, prefabPath, Array.Empty<BuildError>());
+                    if (group.ScenePlan != null)
+                    {
+                        if (!sceneSaveConfirmed)
+                        {
+                            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                            {
+                                var canceled = new BuildError(BuildErrorCode.SceneBuildCanceled,
+                                    group.ScenePlan.Definition.LineNumber, plan.ScenePath,
+                                    "Scene build was canceled because modified scenes were not saved.",
+                                    group.TimelineName);
+                                return new BuildResult(false, completedOutputs.Concat(new[] { output }).ToArray(),
+                                    new[] { canceled });
+                            }
+                            sceneSaveConfirmed = true;
+                        }
 
-                var sceneValidation = sceneValidationByGroup[0];
-                var sceneTimeline = string.IsNullOrWhiteSpace(firstGroup.ScenePlan.Definition.TimelineAssetPath)
-                    ? persistedTimeline : sceneValidation.Timeline;
-                if (sceneTimeline == null)
-                    return Failure(new BuildError(BuildErrorCode.SceneTimelineNotFound,
-                        firstGroup.ScenePlan.Definition.LineNumber, timelinePath,
-                        "Generated TimelineAsset was not found after creation."), timelinePath, prefabPath);
+                        var sceneValidation = sceneValidationByGroup[groupIndex];
+                        var sceneTimeline = string.IsNullOrWhiteSpace(group.ScenePlan.Definition.TimelineAssetPath)
+                            ? persistedTimeline : sceneValidation.Timeline;
+                        if (sceneTimeline == null)
+                        {
+                            var missing = new BuildError(BuildErrorCode.SceneTimelineNotFound,
+                                group.ScenePlan.Definition.LineNumber, plan.TimelineAssetPath,
+                                "Generated TimelineAsset was not found after creation.", group.TimelineName);
+                            return new BuildResult(false, completedOutputs.Concat(new[] { output }).ToArray(),
+                                new[] { missing });
+                        }
 
-                var scenePath = firstPlan.ScenePath;
-                var sceneContext = new SceneBuildContext(firstGroup.ScenePlan, sceneTimeline,
-                    sceneValidation.PrefabAssets, scenePath, firstPlan.AssetName,
-                    string.IsNullOrWhiteSpace(firstGroup.ScenePlan.Definition.TimelineAssetPath)
-                        ? timelinePath : firstGroup.ScenePlan.Definition.TimelineAssetPath, prefabPath);
-                if (!new SceneFactory().TryCreate(sceneContext, out var createdScenePath, out var sceneErrors))
-                    return Failure(sceneErrors, timelinePath, prefabPath);
-                Debug.Log("[UnityTimelineBuilder] Scene: " + createdScenePath);
-                return new BuildResult(true, timelinePath, prefabPath, createdScenePath, Array.Empty<BuildError>());
+                        var sceneContext = new SceneBuildContext(group.ScenePlan, sceneTimeline,
+                            sceneValidation.PrefabAssets, plan.ScenePath, plan.AssetName,
+                            string.IsNullOrWhiteSpace(group.ScenePlan.Definition.TimelineAssetPath)
+                                ? plan.TimelineAssetPath : group.ScenePlan.Definition.TimelineAssetPath,
+                            plan.PrefabPath);
+                        if (!new SceneFactory().TryCreate(sceneContext, out var createdScenePath, out var sceneErrors))
+                        {
+                            var attributed = sceneErrors.Select(error => WithTimeline(error, group.TimelineName));
+                            return new BuildResult(false, completedOutputs.Concat(new[] { output }).ToArray(),
+                                attributed.ToArray());
+                        }
+                        output = new BuildOutput(group.TimelineName, plan.AssetName,
+                            plan.TimelineAssetPath, plan.PrefabPath, createdScenePath, true);
+                        Debug.Log("[UnityTimelineBuilder] Scene: " + createdScenePath);
+                    }
+
+                    completedOutputs.Add(output);
+                }
+                catch (Exception exception)
+                {
+                    var failure = new BuildError(BuildErrorCode.OutputWriteFailed, null,
+                        plan.TimelineAssetPath, exception.Message, group.TimelineName);
+                    return new BuildResult(false, completedOutputs.Concat(new[] { output }).ToArray(),
+                        new[] { failure });
+                }
             }
-            catch (Exception exception)
-            { return Failure(new BuildError(BuildErrorCode.OutputWriteFailed, null, timelinePath, exception.Message)); }
+
+            return new BuildResult(true, completedOutputs, Array.Empty<BuildError>());
         }
 
         public static BuildResult Build(string sheetPath, string outputDirectory, string assetName = null)
@@ -153,6 +198,13 @@ namespace Hidano.UnityTimelineBuilder.Editor
                 catch (Exception exception) { errors.Add(Unexpected(sourcePath, exception, row.LineNumber, row.ResourcePath)); }
             }
             return resolved;
+        }
+
+        private static BuildError WithTimeline(BuildError error, string timelineName)
+        {
+            if (error == null) return null;
+            return new BuildError(error.Code, error.LineNumber, error.SourcePath,
+                error.Message, error.TimelineName ?? timelineName);
         }
 
         private static IReadOnlyList<BuildError> AnnotateErrors(IEnumerable<BuildError> source,
