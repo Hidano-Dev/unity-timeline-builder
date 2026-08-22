@@ -295,5 +295,43 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             Assert.That(outcome.Rows[0].Duration, Is.EqualTo(3));
             Assert.That(outcome.Rows[0].ResourcePath, Is.EqualTo("Assets/intro.wav"));
         }
+
+        [Test]
+        public void RequiresTimelineValueOnEveryDataRowWhenTimelineColumnExists()
+        {
+            var rows = new List<IReadOnlyList<string>>
+            {
+                new[] { "trackType", "trackName", "clipName", "startTime", "clipIn", "duration", "resourcePath", "timeline" },
+                new[] { "Audio", "A", "Clip", "0", "0", "1", "Assets/a.wav", "Main" },
+                new[] { "Audio", "B", "Clip", "0", "0", "1", "Assets/b.wav", "" },
+                new[] { "Audio", "C", "Clip", "0", "0", "1", "Assets/c.wav", "   " }
+            };
+
+            var outcome = CreateParser().Parse(rows);
+
+            Assert.That(outcome.Errors, Has.Count.EqualTo(2));
+            Assert.That(outcome.Errors.Select(error => error.LineNumber), Is.EquivalentTo(new int?[] { 3, 4 }));
+            Assert.That(outcome.Errors.All(error => error.Message.Contains("timeline")), Is.True);
+            Assert.That(outcome.Errors.All(error => error.Message.Contains("必須") || error.Message.Contains("required")), Is.True);
+        }
+
+        [Test]
+        public void AppliesFileNameValidationToTimelineNamesAndSceneNames()
+        {
+            var rows = new List<IReadOnlyList<string>>
+            {
+                new[] { "trackType", "trackName", "clipName", "startTime", "clipIn", "duration", "resourcePath", "timeline" },
+                new[] { "Audio", "A", "Clip", "0", "0", "1", "Assets/a.wav", "Bad/Timeline" },
+                new[] { "Audio", "B", "Clip", "0", "0", "1", "Assets/b.wav", "." },
+                new[] { "Scene", "Valid", "", "", "", "", "", "Good" }
+            };
+
+            var outcome = CreateParser().Parse(rows);
+
+            Assert.That(outcome.Errors, Has.Count.EqualTo(2));
+            Assert.That(outcome.Errors.Select(error => error.LineNumber), Is.EquivalentTo(new int?[] { 2, 3 }));
+            Assert.That(outcome.Errors[0].Message, Does.Contain("Bad/Timeline"));
+            Assert.That(outcome.Errors[1].Message, Does.Contain("."));
+        }
     }
 }

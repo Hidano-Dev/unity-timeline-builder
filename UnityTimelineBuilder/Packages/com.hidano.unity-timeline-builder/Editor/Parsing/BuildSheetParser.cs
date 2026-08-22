@@ -80,7 +80,25 @@ namespace Hidano.UnityTimelineBuilder.Editor
                     ? GetValue(fields, columnIndexes, "timeline")
                     : null;
                 GroupBuilder group;
-                if (timelineName == null)
+                if (hasTimelineColumn)
+                {
+                    if (!TryGetValue(fields, columnIndexes, "timeline", out var timelineValue))
+                    {
+                        AddRangeError(lineNumber, "timeline は必須です", errors);
+                    }
+                    else if (!IsValidAssetFileName(timelineValue.Trim()))
+                    {
+                        AddRangeError(lineNumber, "Timeline 名がファイル名として不正です: " + timelineName, errors);
+                    }
+
+                    if (!groupsByName.TryGetValue(timelineName, out group))
+                    {
+                        group = new GroupBuilder(timelineName, lineNumber);
+                        groupsByName.Add(timelineName, group);
+                        groupBuilders.Add(group);
+                    }
+                }
+                else
                 {
                     if (legacyGroup == null)
                     {
@@ -132,7 +150,7 @@ namespace Hidano.UnityTimelineBuilder.Editor
                     var sceneName = GetValue(fields, indexes, "trackName");
                     if (!TryGetValue(fields, indexes, "trackName", out _))
                         AddRangeError(lineNumber, "Scene 行の必須値がありません: trackName (Scene 名)", errors);
-                    else if (!IsValidSceneName(sceneName))
+                    else if (!IsValidAssetFileName(sceneName))
                         AddRangeError(lineNumber, "Scene 名がファイル名として不正です: " + sceneName, errors);
 
                     if (definition != null)
@@ -281,7 +299,7 @@ namespace Hidano.UnityTimelineBuilder.Editor
         }
 
         private static void AddRangeError(int lineNumber, string message, List<BuildError> errors) => errors.Add(new BuildError(BuildErrorCode.RowValidationError, lineNumber, null, message));
-        private static bool IsValidSceneName(string value)
+        private static bool IsValidAssetFileName(string value)
         {
             if (string.IsNullOrEmpty(value) || value == "." || value == ".." || value[value.Length - 1] == '.' || value[value.Length - 1] == ' ')
                 return false;
