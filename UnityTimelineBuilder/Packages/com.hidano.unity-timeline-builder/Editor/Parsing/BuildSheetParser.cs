@@ -77,7 +77,7 @@ namespace Hidano.UnityTimelineBuilder.Editor
                 var lineNumber = rowIndex + 1;
                 var fields = rawRows[rowIndex] ?? Array.Empty<string>();
                 var timelineName = hasTimelineColumn
-                    ? GetValue(fields, columnIndexes, "timeline")
+                    ? NormalizeAssetName(GetValue(fields, columnIndexes, "timeline"))
                     : null;
                 GroupBuilder group;
                 if (hasTimelineColumn)
@@ -86,9 +86,9 @@ namespace Hidano.UnityTimelineBuilder.Editor
                     {
                         AddRangeError(lineNumber, "timeline は必須です", errors);
                     }
-                    else if (!IsValidAssetFileName(timelineValue.Trim()))
+                    else if (timelineName.Length == 0 || !IsValidAssetFileName(timelineName))
                     {
-                        AddRangeError(lineNumber, "Timeline 名がファイル名として不正です: " + timelineName, errors);
+                        AddRangeError(lineNumber, "Timeline 名がファイル名として不正です: " + timelineValue.Trim(), errors);
                     }
 
                     if (!groupsByName.TryGetValue(timelineName, out group))
@@ -141,11 +141,11 @@ namespace Hidano.UnityTimelineBuilder.Editor
             switch (trackType.Trim().ToLowerInvariant())
             {
                 case "scene":
-                    var sceneName = GetValue(fields, indexes, "trackName");
-                    if (!TryGetValue(fields, indexes, "trackName", out _))
+                    var sceneName = NormalizeAssetName(GetValue(fields, indexes, "trackName"));
+                    if (!TryGetValue(fields, indexes, "trackName", out var rawSceneName))
                         AddRangeError(lineNumber, "Scene 行の必須値がありません: trackName (Scene 名)", errors);
-                    else if (!IsValidAssetFileName(sceneName))
-                        AddRangeError(lineNumber, "Scene 名がファイル名として不正です: " + sceneName, errors);
+                    else if (sceneName.Length == 0 || !IsValidAssetFileName(sceneName))
+                        AddRangeError(lineNumber, "Scene 名がファイル名として不正です: " + rawSceneName.Trim(), errors);
 
                     if (definition != null)
                     {
@@ -293,6 +293,32 @@ namespace Hidano.UnityTimelineBuilder.Editor
         }
 
         private static void AddRangeError(int lineNumber, string message, List<BuildError> errors) => errors.Add(new BuildError(BuildErrorCode.RowValidationError, lineNumber, null, message));
+
+        private static readonly string[] KnownAssetExtensions = { ".playable", ".prefab", ".unity", ".asset", ".csv" };
+
+        /// <summary>パス様の入力は最後の区切り文字（/ または \）以降を採用し、既知の拡張子を除去する。
+        /// ドットを含む名前（例: "Ver1.5"）は既知の拡張子でない限り保持する。</summary>
+        internal static string NormalizeAssetName(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return value ?? string.Empty;
+
+            var name = value.Trim();
+            var separatorIndex = name.LastIndexOfAny(new[] { '/', '\\' });
+            if (separatorIndex >= 0)
+                name = name.Substring(separatorIndex + 1);
+
+            foreach (var extension in KnownAssetExtensions)
+            {
+                if (name.Length > extension.Length &&
+                    name.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+                {
+                    name = name.Substring(0, name.Length - extension.Length);
+                    break;
+                }
+            }
+            return name.Trim();
+        }
         private static bool IsValidAssetFileName(string value)
         {
             if (string.IsNullOrEmpty(value) || value == "." || value == ".." || value[value.Length - 1] == '.' || value[value.Length - 1] == ' ')

@@ -77,6 +77,10 @@ SceneBind,Character,,,,,CharacterRoot
 
 各グループにはクリップ行を置き、`ScenePrefab` または `SceneBind` を置く場合は同じグループに `Scene` 行を1行置いてください。`Scene` 行はグループごとに最大1行です。Scene 行の `resourcePath` が空欄なら同じグループで生成した TimelineAsset を参照し、`Assets/` パスなら既存アセットを参照します。
 
-`timeline` 列を使用するシートでは `AssetName`（API の `BuildRequest.AssetName`、CLI の `-assetName`）を指定できません。Timeline 名が各グループのアセット名になるためです。指定した場合は `AssetNameConflict` ビルドエラーになります。Timeline 名はファイル名として有効な文字列にし、制御文字、`<>:"/\\|?*`、末尾のピリオド・空白、`.`、`..` は使用しないでください。
+`timeline` 列を使用するシートでは `AssetName`（API の `BuildRequest.AssetName`、CLI の `-assetName`）を指定できません。Timeline 名が各グループのアセット名になるためです。指定した場合は `AssetNameConflict` ビルドエラーになります。Timeline 名はファイル名として有効な文字列にし、制御文字、`<>:"|?*`、末尾のピリオド・空白、`.`、`..` は使用しないでください。
+
+### 名前のパス・拡張子の自動正規化
+
+`timeline` 列・`Scene` 行の Scene 名・`AssetName`（API / CLI）に区切り文字（`/` または `\`）を含む値を指定した場合、パスが入力されたものと解釈し、最後の区切り文字から末尾までをファイル名として採用します。さらに、末尾が既知の拡張子（`.playable` / `.prefab` / `.unity` / `.asset` / `.csv`、大文字小文字は区別しない）の場合は拡張子を除去します。例: `Assets/Timelines/Opening.playable` → `Opening`。この正規化はグループ化の前に行われるため、`Opening` と `Assets/Timelines/Opening.playable` は同じグループになります。既知の拡張子でないドット入りの名前（例: `Ver1.5`）はそのまま保持されます。正規化後に名前が空になる値（例: `Assets/`）はエラーです。
 
 同一ビルド内でアセットまたは Scene の出力パスが大文字小文字を区別せず衝突する場合、後のグループへ ` (1)`、` (2)` のような連番サフィックスを付けてリネームします。リネーム時は元の名前と確定した出力パスを警告ログに出力し、Prefab と TimelineAsset のペアは同じ確定名を使用します。`timeline` は予約列名のため、必ずヘッダーに列名を追加してください。

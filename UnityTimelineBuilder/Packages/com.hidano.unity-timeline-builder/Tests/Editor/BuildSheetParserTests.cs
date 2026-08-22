@@ -218,7 +218,7 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
                 new[] { "trackType", "trackName", "clipName", "startTime", "clipIn", "duration", "resourcePath" },
                 new[] { "ScenePrefab", "", "", "", "", "", "" },
                 new[] { "SceneBind", "Walk", "", "", "", "", "Hero" },
-                new[] { "Scene", "Bad/Scene", "", "", "", "", "" },
+                new[] { "Scene", "Bad|Scene", "", "", "", "", "" },
                 new[] { "Scene", "Another", "", "", "", "", "" },
                 new[] { "SceneBind", "Walk", "", "", "", "", "Hero2" }
             };
@@ -316,7 +316,7 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             var duplicateAndInvalidRows = new List<IReadOnlyList<string>>
             {
                 new[] { "trackType", "trackName", "clipName", "startTime", "clipIn", "duration", "resourcePath" },
-                new[] { "Scene", "Bad/Scene", "", "", "", "", "" },
+                new[] { "Scene", "Bad|Scene", "", "", "", "", "" },
                 new[] { "Scene", "Valid", "", "", "", "", "" },
                 new[] { "SceneBind", "Walk", "", "", "", "", "Hero2" }
             };
@@ -381,7 +381,7 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             var rows = new List<IReadOnlyList<string>>
             {
                 new[] { "trackType", "trackName", "clipName", "startTime", "clipIn", "duration", "resourcePath", "timeline" },
-                new[] { "Audio", "A", "Clip", "0", "0", "1", "Assets/a.wav", "Bad/Timeline" },
+                new[] { "Audio", "A", "Clip", "0", "0", "1", "Assets/a.wav", "Bad|Timeline" },
                 new[] { "Audio", "B", "Clip", "0", "0", "1", "Assets/b.wav", "." },
                 new[] { "Scene", "Valid", "", "", "", "", "", "Good" }
             };
@@ -390,7 +390,7 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
 
             Assert.That(outcome.Errors, Has.Count.EqualTo(2));
             Assert.That(outcome.Errors.Select(error => error.LineNumber), Is.EquivalentTo(new int?[] { 2, 3 }));
-            Assert.That(outcome.Errors[0].Message, Does.Contain("Bad/Timeline"));
+            Assert.That(outcome.Errors[0].Message, Does.Contain("Bad|Timeline"));
             Assert.That(outcome.Errors[1].Message, Does.Contain("."));
         }
 
@@ -401,7 +401,7 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             {
                 new[] { "trackType", "trackName", "clipName", "startTime", "clipIn", "duration", "resourcePath", "timeline" },
                 new[] { "Audio", "Blank", "Clip", "0", "0", "1", "Assets/blank.wav", "" },
-                new[] { "Audio", "Invalid", "Clip", "0", "0", "1", "Assets/invalid.wav", "Bad/Timeline" },
+                new[] { "Audio", "Invalid", "Clip", "0", "0", "1", "Assets/invalid.wav", "Bad|Timeline" },
                 new[] { "Audio", "Trailing", "Clip", "0", "0", "1", "Assets/trailing.wav", "Trailing. " }
             };
 
@@ -412,7 +412,7 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
                 Is.EqualTo(new int?[] { 2, 3, 4 }));
             Assert.That(outcome.Errors.All(error => error.Code == BuildErrorCode.RowValidationError), Is.True);
             Assert.That(outcome.Errors[0].Message, Does.Contain("timeline"));
-            Assert.That(outcome.Errors[1].Message, Does.Contain("Bad/Timeline"));
+            Assert.That(outcome.Errors[1].Message, Does.Contain("Bad|Timeline"));
             Assert.That(outcome.Errors[2].Message, Does.Contain("Trailing."));
         }
 
@@ -493,6 +493,45 @@ namespace Hidano.UnityTimelineBuilder.Editor.Tests
             Assert.That(outcome.Errors.Select(error => error.LineNumber),
                 Is.EquivalentTo(new int?[] { 3, 4 }));
             Assert.That(outcome.Errors.All(error => error.Message.Contains("Scene 行が必要です")), Is.True);
+        }
+
+        [Test]
+        public void NormalizesPathLikeTimelineNamesToLastSegmentAndStripsKnownExtensions()
+        {
+            var rows = new List<IReadOnlyList<string>>
+            {
+                new[] { "trackType", "trackName", "clipName", "startTime", "clipIn", "duration", "resourcePath", "timeline" },
+                new[] { "Audio", "A", "Clip", "0", "0", "1", "Assets/a.wav", "Assets/Timelines/Main" },
+                new[] { "Audio", "B", "Clip", "0", "0", "1", "Assets/b.wav", @"Assets\Timelines\Sub.playable" },
+                new[] { "Audio", "C", "Clip", "0", "0", "1", "Assets/c.wav", "Main.playable" },
+                new[] { "Audio", "D", "Clip", "0", "0", "1", "Assets/d.wav", "Ver1.5" }
+            };
+
+            var outcome = CreateParser().Parse(rows);
+
+            Assert.That(outcome.Errors, Is.Empty);
+            Assert.That(outcome.Groups.Select(group => group.TimelineName),
+                Is.EqualTo(new[] { "Main", "Sub", "Ver1.5" }));
+            Assert.That(outcome.Groups[0].Rows.Select(row => row.TrackName), Is.EqualTo(new[] { "A", "C" }));
+        }
+
+        [Test]
+        public void NormalizesSceneNamesAndRejectsValuesThatBecomeEmptyAfterNormalization()
+        {
+            var rows = new List<IReadOnlyList<string>>
+            {
+                new[] { "trackType", "trackName", "clipName", "startTime", "clipIn", "duration", "resourcePath", "timeline" },
+                new[] { "Scene", "Scenes/Stage1.unity", "", "", "", "", "", "Main" },
+                new[] { "Audio", "A", "Clip", "0", "0", "1", "Assets/a.wav", "Main" },
+                new[] { "Audio", "B", "Clip", "0", "0", "1", "Assets/b.wav", "Assets/" }
+            };
+
+            var outcome = CreateParser().Parse(rows);
+
+            Assert.That(outcome.Errors, Has.Count.EqualTo(1));
+            Assert.That(outcome.Errors[0].LineNumber, Is.EqualTo(4));
+            Assert.That(outcome.Errors[0].Message, Does.Contain("Assets/"));
+            Assert.That(outcome.Groups[0].ScenePlan.Definition.SceneName, Is.EqualTo("Stage1"));
         }
     }
 }

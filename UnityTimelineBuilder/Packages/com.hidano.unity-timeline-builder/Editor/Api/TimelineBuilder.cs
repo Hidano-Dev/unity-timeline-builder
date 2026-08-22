@@ -17,7 +17,8 @@ namespace Hidano.UnityTimelineBuilder.Editor
         {
             ValidateRequest(request);
             var fallbackAssetName = string.IsNullOrWhiteSpace(request.AssetName)
-                ? Path.GetFileNameWithoutExtension(request.SheetPath) : request.AssetName.Trim();
+                ? Path.GetFileNameWithoutExtension(request.SheetPath)
+                : BuildSheetParser.NormalizeAssetName(request.AssetName);
             if (string.IsNullOrWhiteSpace(fallbackAssetName))
                 throw new ArgumentException("Asset name is required.", nameof(request));
 
